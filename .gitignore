@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Composer (if added later)
+/vendor/
+/composer.lock
+
+# Moodle-PHPUnit/Behat artefacts
+/phpunit.xml
+/behat.yml

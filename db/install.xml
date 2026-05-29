@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="ai/provider/awsbr/db" VERSION="2026053100" COMMENT="AWS Bedrock provider per-action audit tables."
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="aiprovider_awsbr_embed_text" COMMENT="Per-call audit for the custom embed_text action. Each row supplies a unique actionid so ai_action_register's UNIQUE(actionname, actionid) holds. Renamed from aiprovider_bedrock_embed_text when the plugin was renamed for Moodle plugin repository conflict.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="prompt" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="The text that was embedded (may be truncated by caller)."/>
+        <FIELD NAME="vectordim" TYPE="int" LENGTH="5" NOTNULL="false" SEQUENCE="false" COMMENT="Dimension of resulting vector."/>
+        <FIELD NAME="prompttokens" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Tokens billed for the embedding request."/>
+        <FIELD NAME="model" TYPE="char" LENGTH="128" NOTNULL="false" SEQUENCE="false" COMMENT="Embedding model ID used."/>
+        <FIELD NAME="responseid" TYPE="char" LENGTH="128" NOTNULL="false" SEQUENCE="false" COMMENT="AWS request ID for the call."/>
+        <FIELD NAME="fingerprint" TYPE="char" LENGTH="128" NOTNULL="false" SEQUENCE="false" COMMENT="Model fingerprint / version marker."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+    </TABLE>
+  </TABLES>
+</XMLDB>
