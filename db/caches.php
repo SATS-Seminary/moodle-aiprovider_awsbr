@@ -35,4 +35,15 @@ $definitions = [
         'staticacceleration' => false,
         'ttl'            => HOURSECS - 300, // 55 minutes.
     ],
+
+    // Caches the list of invokable Bedrock inference profiles per region, so
+    // model selections can be validated without hitting the control plane on
+    // every page load. Refreshed on demand (CLI / forced reload).
+    'model_catalog' => [
+        'mode'           => cache_store::MODE_APPLICATION,
+        'simplekeys'     => true,
+        'simpledata'     => false,
+        'staticacceleration' => true,
+        'ttl'            => DAYSECS,
+    ],
 ];

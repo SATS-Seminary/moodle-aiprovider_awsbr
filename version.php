@@ -31,7 +31,7 @@ $plugin->component = 'aiprovider_awsbr';
 //   - renames audit table aiprovider_bedrock_embed_text → aiprovider_awsbr_embed_text
 //   - rewrites config_plugins rows from plugin='aiprovider_bedrock' to 'aiprovider_awsbr'
 //   - rewrites ai_action_register rows from provider='aiprovider_bedrock' to 'aiprovider_awsbr'
-$plugin->version   = 2026053100;
+$plugin->version   = 2026060400;
 $plugin->release   = '0.1.0';
 $plugin->requires  = 2025040800; // Moodle 5.0 AI subsystem.
 $plugin->maturity  = MATURITY_ALPHA;

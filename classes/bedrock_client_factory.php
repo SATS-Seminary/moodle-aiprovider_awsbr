@@ -17,6 +17,7 @@
 namespace aiprovider_awsbr;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
+use Aws\Bedrock\BedrockClient;
 use Aws\Credentials\Credentials;
 use Aws\Credentials\InstanceProfileProvider;
 use Aws\Credentials\AssumeRoleCredentialProvider;
@@ -93,6 +94,43 @@ class bedrock_client_factory {
         ];
 
         $client = new BedrockRuntimeClient($args);
+        $this->configure_proxy($client);
+        return $client;
+    }
+
+    /**
+     * Return a Bedrock control-plane client (model/inference-profile listing).
+     *
+     * Same credential chain as get_runtime_client(), but the control-plane
+     * service (ListInferenceProfiles, ListFoundationModels) rather than the
+     * runtime (Converse). Used by model_catalog to validate model selections.
+     *
+     * @param string|null $region AWS region. Defaults to the provider's primary region.
+     * @return BedrockClient
+     */
+    public function get_control_client(?string $region = null): BedrockClient {
+        $region   = $region ?? ($this->provider->config['region'] ?? 'af-south-1');
+        $authmode = $this->provider->config['authmode'] ?? 'instance_role';
+
+        if ($authmode === 'api_key') {
+            $apikey = (string) ($this->provider->config['apikey'] ?? '');
+            $client = new BedrockClient([
+                'region'      => $region,
+                'version'     => 'latest',
+                'credentials' => false,
+                'http'        => ['connect_timeout' => 10, 'timeout' => 60],
+            ]);
+            $this->add_bearer_token_middleware($client, $apikey);
+            $this->configure_proxy($client);
+            return $client;
+        }
+
+        $client = new BedrockClient([
+            'region'      => $region,
+            'version'     => 'latest',
+            'credentials' => $this->build_credentials_provider(),
+            'http'        => ['connect_timeout' => 10, 'timeout' => 60],
+        ]);
         $this->configure_proxy($client);
         return $client;
     }
