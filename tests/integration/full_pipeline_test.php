@@ -333,30 +333,15 @@ final class full_pipeline_test extends \advanced_testcase {
         // Response assertions.
         $this->assertInstanceOf(\core_ai\aiactions\responses\response_generate_text::class, $response);
         $this->assertTrue($response->get_success(), 'Expected a successful response from the mock pipeline.');
-        $this->assertEquals(
-            'The capital of South Africa is Pretoria.',
-            $response->get_generated_content(),
-        );
-
-        // DB: ai_action_register.
-        $registerrows = $DB->get_records('ai_action_register', [
-            'userid'     => (int) $this->testuser->id,
-            'actionname' => 'generate_text',
-        ]);
-        $this->assertCount(1, $registerrows, 'Exactly one ai_action_register row expected after generate_text.');
-        $registerrow = reset($registerrows);
-        $this->assertEquals('aiprovider_awsbr', $registerrow->provider);
-        $this->assertEquals(1, (int) $registerrow->success);
-
-        // DB: ai_action_generate_text.
-        $generaterow = $DB->get_record('ai_action_generate_text', ['id' => $registerrow->actionid]);
-        $this->assertNotFalse($generaterow, 'ai_action_generate_text row must exist.');
-        $this->assertEquals(12, (int) $generaterow->prompttokens);
-        $this->assertEquals(9, (int) $generaterow->completiontoken);
-        $this->assertEquals(
-            'The capital of South Africa is Pretoria.',
-            $generaterow->generatedcontent,
-        );
+        // Assert on the response object the processor produces. The audit-table
+        // rows (ai_action_register / ai_action_generate_text) are written by
+        // core_ai\manager::process_action(), NOT by a bare processor->process()
+        // call — so this processor-level integration test verifies the Bedrock
+        // Converse → response_base mapping (content + token counts) instead.
+        $data = $response->get_response_data();
+        $this->assertEquals('The capital of South Africa is Pretoria.', $data['generatedcontent']);
+        $this->assertEquals(12, (int) $data['prompttokens']);
+        $this->assertEquals(9, (int) $data['completiontokens']);
     }
 
     // =========================================================================
@@ -401,21 +386,13 @@ final class full_pipeline_test extends \advanced_testcase {
         $response = $processor->process();
 
         $this->assertTrue($response->get_success());
-        $this->assertEquals('Moodle is a learning management system.', $response->get_generated_content());
 
-        // ai_action_register must record the correct action name.
-        $registerrow = $DB->get_record('ai_action_register', [
-            'userid'     => (int) $this->testuser->id,
-            'actionname' => 'summarise_text',
-        ]);
-        $this->assertNotFalse($registerrow, 'ai_action_register row for summarise_text must exist.');
-        $this->assertEquals('aiprovider_awsbr', $registerrow->provider);
-
-        // Token counts.
-        $summaryrow = $DB->get_record('ai_action_summarise_text', ['id' => $registerrow->actionid]);
-        $this->assertNotFalse($summaryrow);
-        $this->assertEquals(30, (int) $summaryrow->prompttokens);
-        $this->assertEquals(8, (int) $summaryrow->completiontoken);
+        // Assert on the response object (audit-table rows are the manager's
+        // job, not a bare process() call — see test_generate_text_full_pipeline).
+        $data = $response->get_response_data();
+        $this->assertEquals('Moodle is a learning management system.', $data['generatedcontent']);
+        $this->assertEquals(30, (int) $data['prompttokens']);
+        $this->assertEquals(8, (int) $data['completiontokens']);
     }
 
     // =========================================================================
@@ -452,17 +429,11 @@ final class full_pipeline_test extends \advanced_testcase {
 
         $this->assertTrue($response->get_success());
 
-        $registerrow = $DB->get_record('ai_action_register', [
-            'userid'     => (int) $this->testuser->id,
-            'actionname' => 'explain_text',
-        ]);
-        $this->assertNotFalse($registerrow);
-        $this->assertEquals('aiprovider_awsbr', $registerrow->provider);
-
-        $explainrow = $DB->get_record('ai_action_explain_text', ['id' => $registerrow->actionid]);
-        $this->assertNotFalse($explainrow);
-        $this->assertEquals(18, (int) $explainrow->prompttokens);
-        $this->assertEquals(19, (int) $explainrow->completiontoken);
+        // Assert on the response object (audit-table rows are the manager's
+        // job, not a bare process() call — see test_generate_text_full_pipeline).
+        $data = $response->get_response_data();
+        $this->assertEquals(18, (int) $data['prompttokens']);
+        $this->assertEquals(19, (int) $data['completiontokens']);
     }
 
     // =========================================================================
@@ -505,14 +476,14 @@ final class full_pipeline_test extends \advanced_testcase {
         );
         $this->assertTrue($response->get_success(), 'Expected a successful embed_text response.');
 
-        $vector = $response->get_embedding();
-        $this->assertIsArray($vector, 'get_embedding() must return an array.');
+        $vector = $response->get_vector();
+        $this->assertIsArray($vector, 'get_vector() must return an array.');
         $this->assertCount(4, $vector, 'Vector dimension must match the mock payload (4).');
         $this->assertEqualsWithDelta(0.01, $vector[0], 0.0001, 'First vector element must match fixture.');
 
         $this->assertEquals(4, $response->get_dim(), 'get_dim() must match vector length.');
-        $this->assertEquals(11, $response->get_prompt_tokens(), 'Token count must match Titan mock payload.');
-        $this->assertEquals(self::EMBED_MODEL, $response->get_model(), 'Model string must match configured embed model.');
+        $this->assertEquals(11, $response->get_tokens(), 'Token count must match Titan mock payload.');
+        $this->assertEquals(self::EMBED_MODEL, $response->get_model_used(), 'Model string must match configured embed model.');
     }
 
     /**
@@ -539,7 +510,7 @@ final class full_pipeline_test extends \advanced_testcase {
         $response  = $processor->process();
 
         $this->assertTrue($response->get_success());
-        $this->assertEquals(7, $response->get_prompt_tokens());
+        $this->assertEquals(7, $response->get_tokens());
     }
 
     // =========================================================================

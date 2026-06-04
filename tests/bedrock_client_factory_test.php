@@ -221,13 +221,14 @@ final class bedrock_client_factory_test extends \advanced_testcase {
         $factory = new bedrock_client_factory($provider);
         $client  = $factory->get_runtime_client();
 
-        // Verify that the handler list has our proxy middleware.
-        $handlers = $client->getHandlerList();
-        ob_start();
-        $handlers->debug();
-        $debug = ob_get_clean();
-
-        $this->assertStringContainsString('bedrock_proxy', $debug);
+        // Verify that the handler list has our proxy middleware. (Aws\HandlerList
+        // has no debug() method on this SDK version; hasMiddleware() reads the
+        // same named-middleware registry that appendBuild('…','bedrock_proxy')
+        // populates.)
+        $this->assertTrue(
+            $client->getHandlerList()->hasMiddleware('bedrock_proxy'),
+            'Proxy middleware "bedrock_proxy" should be attached when proxyhost is set.',
+        );
 
         // Clean up.
         $CFG->proxyhost = '';

@@ -142,7 +142,9 @@ final class process_generate_text_test extends \advanced_testcase {
         $this->assertEquals([['text' => 'You are a helpful assistant.']], $args['system']);
         $this->assertEquals(2048, $args['inferenceConfig']['maxTokens']);
         $this->assertEquals(0.7, $args['inferenceConfig']['temperature']);
-        $this->assertEquals(1.0, $args['inferenceConfig']['topP']);
+        // Claude models reject temperature + topP together, so build_inference_config
+        // sends only temperature when it is set — topP is intentionally absent.
+        $this->assertArrayNotHasKey('topP', $args['inferenceConfig']);
     }
 
     /**

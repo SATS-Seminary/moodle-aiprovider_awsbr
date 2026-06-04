@@ -48,8 +48,13 @@ class process_generate_text extends abstract_processor {
         // Build user content blocks.
         $contentblocks = [['text' => $prompttext]];
 
-        // Attach image blocks if present.
-        $imagepath = $this->action->get_configuration('imagepath') ?? '';
+        // Attach image blocks if present. Guard the read: core's
+        // get_configuration() does a raw `return $this->$name`, so reading
+        // `imagepath` on the plain text actions (generate/summarise/explain),
+        // which don't declare it, emits a PHP 8.2 undefined-property warning.
+        $imagepath = property_exists($this->action, 'imagepath')
+            ? ($this->action->get_configuration('imagepath') ?? '')
+            : '';
         if (!empty($imagepath) && file_exists($imagepath)) {
             $imageblocks = $this->build_image_blocks($imagepath);
             $contentblocks = array_merge($contentblocks, $imageblocks);

@@ -605,12 +605,22 @@ final class process_embed_text_test extends \advanced_testcase {
     }
 
     /**
-     * embed_text::store() returns 0 (no secondary table).
+     * embed_text::store() inserts an audit row and returns its positive PK.
+     *
+     * The PK becomes ai_action_register.actionid, which must be unique per
+     * embedding to satisfy that table's UNIQUE(actionname, actionid) index —
+     * hence the dedicated aiprovider_awsbr_embed_text table (not a 0 return).
      */
-    public function test_action_store_returns_zero(): void {
+    public function test_action_store_inserts_audit_row(): void {
+        global $DB;
+
         $response = new \aiprovider_awsbr\aiactions\responses\response_embed_text(true);
         $response->set_response_data(['vector' => [0.1], 'dim' => 1, 'model' => 'titan', 'tokens' => 1]);
 
-        $this->assertEquals(0, $this->action->store($response));
+        $id = $this->action->store($response);
+
+        $this->assertIsInt($id);
+        $this->assertGreaterThan(0, $id);
+        $this->assertTrue($DB->record_exists('aiprovider_awsbr_embed_text', ['id' => $id]));
     }
 }
