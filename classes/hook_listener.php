@@ -147,6 +147,17 @@ class hook_listener {
             "amazon.titan-embed-text-v2:0|Amazon Titan Embeddings v2");
         $mform->addHelpButton('availablemodels', 'availablemodels', 'aiprovider_awsbr');
 
+        // Link to the live model browser / refresh tool (admin UI, no CLI needed).
+        $browseurl = new \moodle_url('/ai/provider/awsbr/models.php');
+        $mform->addElement(
+            'static',
+            'models_browse',
+            '',
+            \html_writer::link($browseurl, get_string('models_browse_link', 'aiprovider_awsbr'),
+                ['class' => 'btn btn-outline-secondary btn-sm', 'target' => '_blank'])
+            . \html_writer::div(get_string('models_browse_desc', 'aiprovider_awsbr'), 'text-muted small mt-1')
+        );
+
         // === Proxy / CA note ===
         $mform->addElement(
             'static',
