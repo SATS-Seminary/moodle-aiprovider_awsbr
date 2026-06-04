@@ -128,6 +128,35 @@ final class process_generate_text_test extends \advanced_testcase {
     // -------------------------------------------------------------------------
 
     /**
+     * A per-request `modeloverride` pinned on the action takes precedence over
+     * the configured per-action model — this is how callers (e.g. local_ezra)
+     * route different prompts to different models.
+     */
+    public function test_build_request_args_honours_model_override(): void {
+        // Pin an override that differs from the action-configured model.
+        @$this->action->modeloverride = 'eu.amazon.nova-lite-v1:0';
+
+        $processor = new process_generate_text($this->provider, $this->action);
+        $method    = new \ReflectionMethod($processor, 'build_request_args');
+        $args      = $method->invoke($processor);
+
+        $this->assertEquals('eu.amazon.nova-lite-v1:0', $args['modelId']);
+    }
+
+    /**
+     * An empty override falls back to the configured per-action model.
+     */
+    public function test_build_request_args_empty_override_falls_back(): void {
+        @$this->action->modeloverride = '';
+
+        $processor = new process_generate_text($this->provider, $this->action);
+        $method    = new \ReflectionMethod($processor, 'build_request_args');
+        $args      = $method->invoke($processor);
+
+        $this->assertEquals('global.anthropic.claude-sonnet-4-5-20250929-v1:0', $args['modelId']);
+    }
+
+    /**
      * Test that build_request_args produces the correct Bedrock Converse shape.
      */
     public function test_build_request_args_basic(): void {

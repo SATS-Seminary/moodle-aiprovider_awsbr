@@ -63,11 +63,26 @@ abstract class abstract_processor extends process_base {
     /**
      * Get the model ID for this action.
      *
-     * Reads the per-action actionconfig; falls back to the first model in availablemodels.
+     * Resolution order:
+     *   1. A per-request `modeloverride` property pinned on the action by the
+     *      caller (e.g. local_ezra passes the active prompt's model_pref so each
+     *      prompt role can target its own model).
+     *   2. The per-action actionconfig model configured in admin.
+     *   3. The first model in the availablemodels textarea.
      *
      * @return string Bedrock inference profile ID.
      */
     protected function get_model_id(): string {
+        // 1. Per-request override. get_configuration() does a raw `return
+        // $this->$name`, so guard with property_exists — the plain actions
+        // (generate/summarise/explain) don't declare `modeloverride`.
+        if (property_exists($this->action, 'modeloverride')) {
+            $override = trim((string) ($this->action->get_configuration('modeloverride') ?? ''));
+            if ($override !== '') {
+                return $override;
+            }
+        }
+
         $model = $this->provider->actionconfig[$this->action::class]['settings']['model'] ?? '';
         if (!empty($model)) {
             return $model;
