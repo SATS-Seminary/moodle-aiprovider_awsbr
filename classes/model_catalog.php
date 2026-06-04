@@ -128,6 +128,69 @@ class model_catalog {
     }
 
     /**
+     * Build the model dropdown options (id => label) for UI selectors.
+     *
+     * The live catalog is the source of truth. An optional allowlist (the
+     * provider's hand-maintained `availablemodels`) acts purely as a curation
+     * overlay: when supplied it narrows the list to that subset AND applies its
+     * custom labels — but only for IDs that are actually invokable, so a stale
+     * or mistyped allowlist entry can never reach a dropdown. Fail-safe: if the
+     * live catalog can't be loaded, the raw allowlist is returned so the UI
+     * still works.
+     *
+     * @param array<string,string> $allowlist Optional id => label curation map.
+     * @return array<string,string> id => label
+     */
+    public function options(array $allowlist = []): array {
+        $live = [];
+        foreach ($this->list() as $m) {
+            $live[$m['id']] = ($m['name'] !== '') ? $m['name'] : $m['id'];
+        }
+
+        if (empty($live)) {
+            return $allowlist; // Catalog unavailable — fall back to the manual list.
+        }
+        if (empty($allowlist)) {
+            return $live; // No curation — offer every invokable profile.
+        }
+
+        // Curate: keep only allowlisted IDs that are genuinely invokable,
+        // relabelling from the allowlist where a label is given.
+        $curated = [];
+        foreach ($allowlist as $id => $label) {
+            if (isset($live[$id])) {
+                $curated[$id] = ($label !== '' && $label !== $id) ? $label : $live[$id];
+            }
+        }
+        // If every curated entry was invalid, don't show an empty box — fall
+        // back to the full live list.
+        return !empty($curated) ? $curated : $live;
+    }
+
+    /**
+     * Parse an `availablemodels` textarea ("id|Label" per line) into id => label.
+     *
+     * @param string $raw
+     * @return array<string,string>
+     */
+    public static function parse_allowlist(string $raw): array {
+        $out = [];
+        foreach (explode("\n", $raw) as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            $parts = explode('|', $line, 2);
+            $id    = trim($parts[0]);
+            $label = isset($parts[1]) ? trim($parts[1]) : $id;
+            if ($id !== '') {
+                $out[$id] = $label;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * Query Bedrock ListInferenceProfiles for the region, paginating fully.
      *
      * @param string $region

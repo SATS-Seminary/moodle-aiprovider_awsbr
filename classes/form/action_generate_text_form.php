@@ -149,19 +149,12 @@ class action_generate_text_form extends action_settings_form {
             $rawmodels = get_config('aiprovider_awsbr', 'availablemodels') ?? '';
         }
 
-        $options = [];
-        foreach (explode("\n", $rawmodels) as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-            $parts = explode('|', $line, 2);
-            $id    = trim($parts[0]);
-            $label = isset($parts[1]) ? trim($parts[1]) : $id;
-            if (!empty($id)) {
-                $options[$id] = $label;
-            }
-        }
+        // Live catalog is the source of truth; the availablemodels textarea is an
+        // optional curation overlay (subset + custom labels). This guarantees the
+        // dropdown only offers models that are actually invokable.
+        $allowlist = \aiprovider_awsbr\model_catalog::parse_allowlist((string) $rawmodels);
+        $catalog   = \aiprovider_awsbr\model_catalog::discover();
+        $options   = $catalog !== null ? $catalog->options($allowlist) : $allowlist;
 
         if (empty($options)) {
             $options[''] = get_string('action:generate_text:model_none', 'aiprovider_awsbr');
