@@ -161,6 +161,7 @@ class provider extends \core_ai\provider {
                     return [
                         'success'      => false,
                         'errorcode'    => 429,
+                        'error'        => 'RateLimitExceeded',
                         'errormessage' => 'User rate limit exceeded',
                     ];
                 }
@@ -178,6 +179,7 @@ class provider extends \core_ai\provider {
                     return [
                         'success'      => false,
                         'errorcode'    => 429,
+                        'error'        => 'RateLimitExceeded',
                         'errormessage' => 'Global rate limit exceeded',
                     ];
                 }

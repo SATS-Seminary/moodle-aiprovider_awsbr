@@ -380,7 +380,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $processor = $this->make_processor(
             $this->provider,
             $this->action,
-            fn() => ['success' => false, 'errorcode' => 403, 'errormessage' => 'Access denied.'],
+            fn() => ['success' => false, 'errorcode' => 403, 'error' => 'AccessDeniedException', 'errormessage' => 'Access denied.'],
         );
 
         $response = $processor->process();
@@ -397,7 +397,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $processor = $this->make_processor(
             $this->provider,
             $this->action,
-            fn() => ['success' => false, 'errorcode' => 404, 'errormessage' => 'Model not ready.'],
+            fn() => ['success' => false, 'errorcode' => 404, 'error' => 'ModelNotReadyException', 'errormessage' => 'Model not ready.'],
         );
 
         $response = $processor->process();

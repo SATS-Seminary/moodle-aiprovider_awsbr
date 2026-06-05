@@ -273,6 +273,7 @@ class process_embed_text extends \core_ai\process_base {
         return [
             'success'      => false,
             'errorcode'    => 429,
+            'error'        => 'ThrottlingException',
             'errormessage' => 'Bedrock embedding request was throttled in all configured regions.',
         ];
     }

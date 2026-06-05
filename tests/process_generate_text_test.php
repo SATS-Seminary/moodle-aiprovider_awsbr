@@ -394,7 +394,7 @@ final class process_generate_text_test extends \advanced_testcase {
                 if ($this->callcounter === 1) {
                     return null; // Simulate ThrottlingException.
                 }
-                return ['success' => false, 'errorcode' => 500, 'errormessage' => 'Fallback region also failed.'];
+                return ['success' => false, 'errorcode' => 500, 'error' => 'BedrockError', 'errormessage' => 'Fallback region also failed.'];
             }
         };
 
