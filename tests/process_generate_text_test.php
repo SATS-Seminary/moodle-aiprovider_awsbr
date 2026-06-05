@@ -318,13 +318,13 @@ final class process_generate_text_test extends \advanced_testcase {
     public function test_process_aws_error_access_denied(): void {
         $this->setUser($this->getDataGenerator()->create_user());
 
-        $mockException = new AwsException(
+        $mockexception = new AwsException(
             'AccessDeniedException',
             new Command('Converse'),
             ['code' => 'AccessDeniedException', 'message' => 'Access denied to the requested resource.'],
         );
 
-        $mock = new MockHandler([$mockException]);
+        $mock = new MockHandler([$mockexception]);
 
         $processor = new class($this->provider, $this->action, $mock) extends process_generate_text {
             public function __construct(

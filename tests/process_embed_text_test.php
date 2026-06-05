@@ -568,6 +568,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $response = new \aiprovider_awsbr\aiactions\responses\response_embed_text(
             success:      false,
             errorcode:    503,
+            error:        'ServiceUnavailable',
             errormessage: 'Service unavailable.',
         );
 

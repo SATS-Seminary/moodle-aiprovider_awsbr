@@ -157,7 +157,8 @@ abstract class abstract_processor extends process_base {
         }
 
         // Should never reach here; call_converse always returns non-null on success or final error.
-        return ['success' => false, 'errorcode' => 500, 'errormessage' => 'Unknown error contacting Bedrock.'];
+        return ['success' => false, 'errorcode' => 500, 'error' => 'BedrockError',
+            'errormessage' => 'Unknown error contacting Bedrock.'];
     }
 
     /**
@@ -187,6 +188,9 @@ abstract class abstract_processor extends process_base {
             return [
                 'success'      => false,
                 'errorcode'    => 500,
+                // 'error' (error name) is required on Moodle main's error
+                // responses; harmless extra key on 5.0 (ignored).
+                'error'        => 'BedrockError',
                 'errormessage' => $e->getMessage(),
             ];
         }
@@ -213,6 +217,9 @@ abstract class abstract_processor extends process_base {
         return [
             'success'      => false,
             'errorcode'    => $httpcode,
+            // Use the AWS error code as the error name (Moodle main requires a
+            // non-empty error name on failures; ignored on 5.0).
+            'error'        => $awscode ?: 'BedrockError',
             'errormessage' => $e->getAwsErrorMessage() ?: $e->getMessage(),
         ];
     }

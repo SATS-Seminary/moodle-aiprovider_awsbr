@@ -52,19 +52,48 @@ class response_embed_text extends response_base {
      *
      * @param bool   $success      Whether the action succeeded.
      * @param int    $errorcode    HTTP-ish error code (required when success=false).
+     * @param string $error        Short error name (required on failure on Moodle main).
      * @param string $errormessage Human-readable error message (required when success=false).
      */
     public function __construct(
         bool $success,
         int $errorcode = 0,
+        string $error = '',
         string $errormessage = '',
     ) {
-        parent::__construct(
-            success: $success,
-            actionname: 'embed_text',
-            errorcode: $errorcode,
-            errormessage: $errormessage,
-        );
+        // Moodle main added a required-on-error `error` (error name) parameter to
+        // response_base; Moodle 5.0 does not have it. Forward it only when the
+        // running core supports it, so this class works on both branches.
+        $args = [
+            'success'      => $success,
+            'actionname'   => 'embed_text',
+            'errorcode'    => $errorcode,
+            'errormessage' => $errormessage,
+        ];
+        if (self::response_base_supports_error()) {
+            $args['error'] = $error;
+        }
+        parent::__construct(...$args);
+    }
+
+    /**
+     * Whether the core response_base constructor accepts an `error` parameter
+     * (added in Moodle main; absent in 5.0). Cached for the request.
+     *
+     * @return bool
+     */
+    private static function response_base_supports_error(): bool {
+        static $supported = null;
+        if ($supported === null) {
+            $supported = false;
+            foreach ((new \ReflectionMethod(response_base::class, '__construct'))->getParameters() as $param) {
+                if ($param->getName() === 'error') {
+                    $supported = true;
+                    break;
+                }
+            }
+        }
+        return $supported;
     }
 
     /**

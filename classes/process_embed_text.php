@@ -125,6 +125,7 @@ class process_embed_text extends \core_ai\process_base {
             return [
                 'success'      => false,
                 'errorcode'    => 500,
+                'error'        => 'BedrockError',
                 'errormessage' => 'Bedrock InvokeModel returned non-JSON body.',
             ];
         }
@@ -146,6 +147,7 @@ class process_embed_text extends \core_ai\process_base {
             return [
                 'success'      => false,
                 'errorcode'    => 500,
+                'error'        => 'BedrockError',
                 'errormessage' => 'Bedrock returned an empty or malformed embedding vector.',
             ];
         }
@@ -205,6 +207,7 @@ class process_embed_text extends \core_ai\process_base {
             return [
                 'success'      => false,
                 'errorcode'    => 500,
+                'error'        => 'BedrockError',
                 'errormessage' => $e->getMessage(),
             ];
         }
@@ -214,7 +217,7 @@ class process_embed_text extends \core_ai\process_base {
      * Map an AWS exception to a Moodle-compatible error array.
      *
      * @param \Aws\Exception\AwsException $e
-     * @return array{success: false, errorcode: int, errormessage: string}
+     * @return array{success: false, errorcode: int, error: string, errormessage: string}
      */
     protected function map_aws_exception(\Aws\Exception\AwsException $e): array {
         $codemapping = [
@@ -231,6 +234,8 @@ class process_embed_text extends \core_ai\process_base {
         return [
             'success'      => false,
             'errorcode'    => $httpcode,
+            // AWS error code doubles as the error name (required on Moodle main).
+            'error'        => $awscode ?: 'BedrockError',
             'errormessage' => $e->getAwsErrorMessage() ?: $e->getMessage(),
         ];
     }
