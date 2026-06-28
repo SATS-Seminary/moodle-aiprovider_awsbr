@@ -32,7 +32,6 @@ use Aws\Credentials\InstanceProfileProvider;
  * @covers     \aiprovider_awsbr\bedrock_client_factory
  */
 final class bedrock_client_factory_test extends \advanced_testcase {
-
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;
 

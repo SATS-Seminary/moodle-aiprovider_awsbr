@@ -162,16 +162,18 @@ class process_generate_text_stream extends process_generate_text {
 
                 if (isset($event['metadata']['usage'])) {
                     $usage     = $event['metadata']['usage'];
-                    $tokensin  = (int) ($usage['inputTokens']  ?? 0);
+                    $tokensin  = (int) ($usage['inputTokens'] ?? 0);
                     $tokensout = (int) ($usage['outputTokens'] ?? 0);
                     $hasusage  = true;
                     continue;
                 }
 
                 // Terminal error events from the stream itself.
-                foreach (['internalServerException', 'modelStreamErrorException',
+                foreach (
+                    ['internalServerException', 'modelStreamErrorException',
                           'throttlingException', 'validationException',
-                          'serviceUnavailableException'] as $errkey) {
+                          'serviceUnavailableException'] as $errkey
+                ) {
                     if (isset($event[$errkey])) {
                         $msg = (string) ($event[$errkey]['message']
                             ?? $event[$errkey]['Message']

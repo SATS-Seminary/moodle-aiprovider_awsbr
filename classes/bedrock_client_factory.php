@@ -42,7 +42,6 @@ use Psr\Http\Message\RequestInterface;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class bedrock_client_factory {
-
     /** MUC cache area used for assumed-role session credentials. */
     private const CACHE_AREA = 'aiprovider_awsbr';
     /** MUC cache key prefix for assumed-role credentials. */
@@ -76,7 +75,7 @@ class bedrock_client_factory {
             $args = [
                 'region'      => $region,
                 'version'     => 'latest',
-                'credentials' => false,  // Disable SigV4.
+                'credentials' => false, // Disable SigV4.
                 'http'        => ['connect_timeout' => 10, 'timeout' => 120],
             ];
             $client = new BedrockRuntimeClient($args);

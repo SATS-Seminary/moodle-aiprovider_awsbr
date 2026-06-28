@@ -31,7 +31,6 @@ use core_ai\process_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 abstract class abstract_processor extends process_base {
-
     /**
      * Build the argument array to pass to BedrockRuntimeClient::converse().
      *

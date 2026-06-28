@@ -33,7 +33,6 @@ use Aws\Command;
  * @covers     \aiprovider_awsbr\abstract_processor
  */
 final class process_generate_text_test extends \advanced_testcase {
-
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;
 
@@ -247,7 +246,7 @@ final class process_generate_text_test extends \advanced_testcase {
 
         // We override bedrock_client_factory inline using a local subclass stored
         // in a variable, then swap the processor's factory call via reflection.
-        $factory = new class($provider, $mock) extends bedrock_client_factory {
+        $factory = new class ($provider, $mock) extends bedrock_client_factory {
             public function __construct(provider $provider, private MockHandler $mockhandler) {
                 parent::__construct($provider);
             }
@@ -277,7 +276,7 @@ final class process_generate_text_test extends \advanced_testcase {
 
         // Build a processor using an anonymous subclass of abstract_processor that
         // uses our mock client instead of a real one.
-        $processor = new class($this->provider, $this->action, $mock) extends process_generate_text {
+        $processor = new class ($this->provider, $this->action, $mock) extends process_generate_text {
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
@@ -326,7 +325,7 @@ final class process_generate_text_test extends \advanced_testcase {
 
         $mock = new MockHandler([$mockexception]);
 
-        $processor = new class($this->provider, $this->action, $mock) extends process_generate_text {
+        $processor = new class ($this->provider, $this->action, $mock) extends process_generate_text {
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
@@ -379,7 +378,7 @@ final class process_generate_text_test extends \advanced_testcase {
         );
 
         $callcount = 0;
-        $processor = new class($provider, $this->action, $callcount) extends process_generate_text {
+        $processor = new class ($provider, $this->action, $callcount) extends process_generate_text {
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
@@ -411,7 +410,7 @@ final class process_generate_text_test extends \advanced_testcase {
 
         // Provider with no fallbackregion.
         $callcount = 0;
-        $processor = new class($this->provider, $this->action, $callcount) extends process_generate_text {
+        $processor = new class ($this->provider, $this->action, $callcount) extends process_generate_text {
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
@@ -466,7 +465,7 @@ final class process_generate_text_test extends \advanced_testcase {
                 userid:     $userid,
                 prompttext: 'Hello',
             );
-            return new class($provider, $action, $callcount) extends process_generate_text {
+            return new class ($provider, $action, $callcount) extends process_generate_text {
                 public function __construct(
                     provider $provider,
                     \core_ai\aiactions\base $action,
@@ -535,7 +534,7 @@ final class process_generate_text_test extends \advanced_testcase {
                 userid:     $userid,
                 prompttext: 'Hello',
             );
-            return new class($provider, $action) extends process_generate_text {
+            return new class ($provider, $action) extends process_generate_text {
                 protected function call_converse(array $args, ?string $region): ?array {
                     return [
                         'success'          => true,

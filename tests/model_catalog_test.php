@@ -25,7 +25,6 @@ namespace aiprovider_awsbr;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class model_catalog_test extends \advanced_testcase {
-
     /**
      * parse_allowlist turns "id|Label" lines into an id => label map.
      */
@@ -54,7 +53,7 @@ final class model_catalog_test extends \advanced_testcase {
             public function list(bool $refresh = false): array {
                 return [
                     ['id' => 'eu.anthropic.claude-sonnet-4-6', 'name' => 'EU Sonnet 4.6', 'status' => 'ACTIVE'],
-                    ['id' => 'eu.amazon.nova-lite-v1:0',       'name' => 'EU Nova Lite',  'status' => 'ACTIVE'],
+                    ['id' => 'eu.amazon.nova-lite-v1:0', 'name' => 'EU Nova Lite', 'status' => 'ACTIVE'],
                 ];
             }
         };

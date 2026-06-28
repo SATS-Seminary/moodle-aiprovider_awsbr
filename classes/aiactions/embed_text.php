@@ -40,7 +40,6 @@ use core_ai\aiactions\responses\response_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class embed_text extends base {
-
     /**
      * Create a new embed_text action.
      *

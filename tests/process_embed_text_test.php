@@ -46,7 +46,6 @@ use aiprovider_awsbr\aiactions\embed_text;
  * @covers     \aiprovider_awsbr\process_embed_text
  */
 final class process_embed_text_test extends \advanced_testcase {
-
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;
 
@@ -140,7 +139,7 @@ final class process_embed_text_test extends \advanced_testcase {
         embed_text $action,
         callable $resultsfn,
     ): process_embed_text {
-        return new class($provider, $action, $resultsfn) extends process_embed_text {
+        return new class ($provider, $action, $resultsfn) extends process_embed_text {
             public function __construct(
                 provider $provider,
                 embed_text $action,

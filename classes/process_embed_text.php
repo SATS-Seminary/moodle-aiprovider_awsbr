@@ -38,7 +38,6 @@ use aiprovider_awsbr\aiactions\responses\response_embed_text;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class process_embed_text extends \core_ai\process_base {
-
     /**
      * Get the model ID configured for the embed_text action.
      *

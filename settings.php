@@ -28,7 +28,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($hassiteconfig) {
-
     // Moodle's AI subsystem registers the provider under its own admin category.
     // We add our settings into the provider's settings page via the standard
     // admin_settingpage that the AI subsystem creates for each provider plugin.
@@ -122,6 +121,9 @@ if ($hassiteconfig) {
         get_string('fallbackregion_help', 'aiprovider_awsbr'),
         '',
     ));
+
+    // Speech (Polly / Transcribe) config is per-instance — defined on the
+    // provider-instance form via hook_listener, not as a global setting.
 
     // -------------------------------------------------------------------------
     // Models block

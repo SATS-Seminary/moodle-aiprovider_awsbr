@@ -167,20 +167,20 @@ final class process_generate_text_stream_test extends \advanced_testcase {
         $this->assertCount(5, $yielded);
 
         $this->assertEquals('text_delta', $yielded[0]['type']);
-        $this->assertEquals('Hello',      $yielded[0]['text']);
+        $this->assertEquals('Hello', $yielded[0]['text']);
 
         $this->assertEquals('text_delta', $yielded[1]['type']);
-        $this->assertEquals(' world',     $yielded[1]['text']);
+        $this->assertEquals(' world', $yielded[1]['text']);
 
         $this->assertEquals('text_delta', $yielded[2]['type']);
-        $this->assertEquals('!',          $yielded[2]['text']);
+        $this->assertEquals('!', $yielded[2]['text']);
 
-        $this->assertEquals('usage',     $yielded[3]['type']);
-        $this->assertEquals(12,          $yielded[3]['tokens_in']);
-        $this->assertEquals(3,           $yielded[3]['tokens_out']);
+        $this->assertEquals('usage', $yielded[3]['type']);
+        $this->assertEquals(12, $yielded[3]['tokens_in']);
+        $this->assertEquals(3, $yielded[3]['tokens_out']);
 
-        $this->assertEquals('finish',    $yielded[4]['type']);
-        $this->assertEquals('end_turn',  $yielded[4]['stop_reason']);
+        $this->assertEquals('finish', $yielded[4]['type']);
+        $this->assertEquals('end_turn', $yielded[4]['stop_reason']);
     }
 
     /**
@@ -266,7 +266,7 @@ final class process_generate_text_stream_test extends \advanced_testcase {
 
         $this->assertCount(2, $yielded);
         $this->assertEquals('text_delta', $yielded[0]['type']);
-        $this->assertEquals('error',      $yielded[1]['type']);
+        $this->assertEquals('error', $yielded[1]['type']);
         $this->assertEquals('Model failed mid-stream.', $yielded[1]['message']);
         $this->assertEquals('modelStreamErrorException', $yielded[1]['code']);
     }

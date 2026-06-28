@@ -32,7 +32,6 @@ use core_ai\hook\after_ai_provider_form_hook;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class hook_listener {
-
     /**
      * Hook callback for the AI provider instance setup form.
      *
@@ -132,6 +131,59 @@ class hook_listener {
         $mform->setType('fallbackregion', PARAM_TEXT);
         $mform->addHelpButton('fallbackregion', 'fallbackregion', 'aiprovider_awsbr');
 
+        // === Speech (Polly text->speech, Transcribe speech->text) ===
+        $mform->addElement(
+            'static',
+            'speech_heading',
+            '',
+            \html_writer::tag('strong', get_string('speech_heading', 'aiprovider_awsbr'))
+            . \html_writer::div(get_string('speech_heading_desc', 'aiprovider_awsbr'), 'text-muted small')
+        );
+
+        // Separate from the Bedrock region: Polly's generative engine is only in
+        // some regions (e.g. eu-west-2 / eu-central-1, not eu-west-1).
+        $mform->addElement(
+            'text',
+            'speechregion',
+            get_string('speechregion', 'aiprovider_awsbr'),
+            ['size' => 20]
+        );
+        $mform->setType('speechregion', PARAM_TEXT);
+        $mform->setDefault('speechregion', 'eu-central-1');
+        $mform->addHelpButton('speechregion', 'speechregion', 'aiprovider_awsbr');
+
+        $mform->addElement(
+            'text',
+            'speechs3bucket',
+            get_string('speechs3bucket', 'aiprovider_awsbr'),
+            ['size' => 60]
+        );
+        $mform->setType('speechs3bucket', PARAM_TEXT);
+        $mform->addHelpButton('speechs3bucket', 'speechs3bucket', 'aiprovider_awsbr');
+
+        $mform->addElement(
+            'select',
+            'speechengine',
+            get_string('speechengine', 'aiprovider_awsbr'),
+            [
+                'generative' => get_string('speechengine:generative', 'aiprovider_awsbr'),
+                'neural'     => get_string('speechengine:neural', 'aiprovider_awsbr'),
+                'standard'   => get_string('speechengine:standard', 'aiprovider_awsbr'),
+            ]
+        );
+        $mform->setDefault('speechengine', 'generative');
+        $mform->addHelpButton('speechengine', 'speechengine', 'aiprovider_awsbr');
+
+        $mform->addElement(
+            'text',
+            'speechvoice',
+            get_string('speechvoice', 'aiprovider_awsbr'),
+            ['size' => 20]
+        );
+        $mform->setType('speechvoice', PARAM_ALPHA);
+        $mform->setDefault('speechvoice', 'Ambre');
+        $mform->addHelpButton('speechvoice', 'speechvoice', 'aiprovider_awsbr');
+
         // === Available inference profile IDs ===
         $mform->addElement(
             'textarea',
@@ -140,11 +192,13 @@ class hook_listener {
             ['rows' => 6, 'cols' => 80]
         );
         $mform->setType('availablemodels', PARAM_RAW);
-        $mform->setDefault('availablemodels',
+        $mform->setDefault(
+            'availablemodels',
             "global.anthropic.claude-sonnet-4-5-20250929-v1:0|Claude Sonnet 4.5\n" .
             "global.anthropic.claude-haiku-4-5-20251001-v1:0|Claude Haiku 4.5\n" .
             "global.anthropic.claude-opus-4-5-20250929-v1:0|Claude Opus 4.5\n" .
-            "amazon.titan-embed-text-v2:0|Amazon Titan Embeddings v2");
+            "amazon.titan-embed-text-v2:0|Amazon Titan Embeddings v2"
+        );
         $mform->addHelpButton('availablemodels', 'availablemodels', 'aiprovider_awsbr');
 
         // Link to the live model browser / refresh tool (admin UI, no CLI needed).
@@ -153,8 +207,11 @@ class hook_listener {
             'static',
             'models_browse',
             '',
-            \html_writer::link($browseurl, get_string('models_browse_link', 'aiprovider_awsbr'),
-                ['class' => 'btn btn-outline-secondary btn-sm', 'target' => '_blank'])
+            \html_writer::link(
+                $browseurl,
+                get_string('models_browse_link', 'aiprovider_awsbr'),
+                ['class' => 'btn btn-outline-secondary btn-sm', 'target' => '_blank']
+            )
             . \html_writer::div(get_string('models_browse_desc', 'aiprovider_awsbr'), 'text-muted small mt-1')
         );
 

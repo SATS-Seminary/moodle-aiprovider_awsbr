@@ -33,7 +33,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class model_catalog {
-
     /** MUC cache area. */
     private const CACHE_AREA = 'aiprovider_awsbr';
     /** MUC cache definition for the model list. */

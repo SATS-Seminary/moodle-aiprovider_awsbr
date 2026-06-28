@@ -47,7 +47,6 @@ use aiprovider_awsbr\aiactions\embed_text;
  * @group      aiprovider_awsbr_integration
  */
 final class full_pipeline_test extends \advanced_testcase {
-
     // -------------------------------------------------------------------------
     // Constants & shared state
     // -------------------------------------------------------------------------
@@ -119,7 +118,7 @@ final class full_pipeline_test extends \advanced_testcase {
                 'enabled'  => true,
                 'settings' => [
                     'model'      => self::EMBED_MODEL,
-                    'dimensions' => '',  // Use model default (1024).
+                    'dimensions' => '', // Use model default (1024).
                 ],
             ],
         ];
@@ -205,7 +204,7 @@ final class full_pipeline_test extends \advanced_testcase {
         \core_ai\aiactions\base $action,
         MockHandler $mockhandler,
     ): process_generate_text {
-        return new class($provider, $action, $mockhandler) extends process_generate_text {
+        return new class ($provider, $action, $mockhandler) extends process_generate_text {
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
@@ -247,7 +246,7 @@ final class full_pipeline_test extends \advanced_testcase {
         embed_text $action,
         MockHandler $mockhandler,
     ): process_embed_text {
-        return new class($provider, $action, $mockhandler) extends process_embed_text {
+        return new class ($provider, $action, $mockhandler) extends process_embed_text {
             public function __construct(
                 provider $provider,
                 embed_text $action,
@@ -546,7 +545,7 @@ final class full_pipeline_test extends \advanced_testcase {
 
         $mockhandler = new MockHandler([$awsexception]);
 
-        $processor = new class($this->provider, $action, $mockhandler) extends process_generate_text {
+        $processor = new class ($this->provider, $action, $mockhandler) extends process_generate_text {
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,

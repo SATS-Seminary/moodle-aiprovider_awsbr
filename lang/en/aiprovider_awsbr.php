@@ -89,6 +89,19 @@ $string['credentials_heading'] = 'AWS Credentials';
 $string['credentials_heading_desc'] = 'Configure how this provider authenticates to AWS Bedrock.';
 $string['region_heading'] = 'AWS Region';
 $string['models_heading'] = 'Inference Models';
+$string['speech_heading'] = 'Speech (Polly / Transcribe)';
+$string['speech_heading_desc'] = 'Optional text-to-speech (Amazon Polly) and speech-to-text (Amazon Transcribe). These are separate AWS services, not Bedrock: they require IAM credentials (above), NOT a Bedrock API key, and an S3 bucket for working storage. Leave blank if unused.';
+$string['speechregion'] = 'Speech region';
+$string['speechregion_help'] = 'AWS region for Polly/Transcribe. Set separately from the Bedrock region because Polly\'s high-quality GENERATIVE engine is only in some regions (e.g. eu-west-2 or eu-central-1, not eu-west-1). The IAM profile must grant Polly/Transcribe in this region.';
+$string['speechs3bucket'] = 'Speech S3 bucket';
+$string['speechs3bucket_help'] = 'An S3 bucket (in the speech region) for source media, transcripts and generated audio. The IAM profile needs s3:PutObject/GetObject on it; keep it private.';
+$string['speechengine'] = 'Polly engine';
+$string['speechengine_help'] = 'Synthesis engine. Generative is the highest quality and is recommended where available.';
+$string['speechengine:generative'] = 'Generative (best quality)';
+$string['speechengine:neural'] = 'Neural';
+$string['speechengine:standard'] = 'Standard';
+$string['speechvoice'] = 'Default Polly voice';
+$string['speechvoice_help'] = 'Default voice ID for synthesis (e.g. a generative French voice). Must support the selected engine in the speech region.';
 $string['ratelimit_heading'] = 'Rate Limiting';
 
 // Credentials detail strings.

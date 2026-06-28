@@ -37,7 +37,6 @@ use core_ai\form\action_settings_form;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class action_embed_text_form extends action_settings_form {
-
     /** Default embedding model ID when no per-action override is set. */
     private const DEFAULT_MODEL = 'amazon.titan-embed-text-v2:0';
 

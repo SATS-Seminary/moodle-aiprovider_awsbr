@@ -37,7 +37,6 @@ use core_ai\aiactions\responses\response_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class response_embed_text extends response_base {
-
     /** @var array<float>|null The embedding vector. */
     private ?array $vector = null;
 

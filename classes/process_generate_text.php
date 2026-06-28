@@ -33,7 +33,6 @@ namespace aiprovider_awsbr;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class process_generate_text extends abstract_processor {
-
     /** Maximum image size Bedrock accepts (3.75 MB in bytes). */
     private const MAX_IMAGE_BYTES = 3932160; // 3.75 * 1024 * 1024
 

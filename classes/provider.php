@@ -31,7 +31,6 @@ use core_ai\form\action_settings_form;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class provider extends \core_ai\provider {
-
     /**
      * Get the list of actions that this provider supports.
      *
@@ -153,11 +152,13 @@ class provider extends \core_ai\provider {
         if (!empty($this->config['enableuserratelimit'])) {
             $limit = (int) ($this->config['userratelimit'] ?? 0);
             if ($limit > 0) {
-                if (!$ratelimiter->check_user_rate_limit(
-                    component: $component,
-                    ratelimit: $limit,
-                    userid:    (int) $action->get_configuration('userid'),
-                )) {
+                if (
+                    !$ratelimiter->check_user_rate_limit(
+                        component: $component,
+                        ratelimit: $limit,
+                        userid:    (int) $action->get_configuration('userid'),
+                    )
+                ) {
                     return [
                         'success'      => false,
                         'errorcode'    => 429,
@@ -172,10 +173,12 @@ class provider extends \core_ai\provider {
         if (!empty($this->config['enableglobalratelimit'])) {
             $limit = (int) ($this->config['globalratelimit'] ?? 0);
             if ($limit > 0) {
-                if (!$ratelimiter->check_global_rate_limit(
-                    component: $component,
-                    ratelimit: $limit,
-                )) {
+                if (
+                    !$ratelimiter->check_global_rate_limit(
+                        component: $component,
+                        ratelimit: $limit,
+                    )
+                ) {
                     return [
                         'success'      => false,
                         'errorcode'    => 429,
