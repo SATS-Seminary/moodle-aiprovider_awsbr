@@ -47,9 +47,7 @@ use aiprovider_awsbr\aiactions\embed_text;
  * @group      aiprovider_awsbr_integration
  */
 final class full_pipeline_test extends \advanced_testcase {
-    // -------------------------------------------------------------------------
-    // Constants & shared state
-    // -------------------------------------------------------------------------
+    // Constants & shared state.
 
     /** Primary model used for text-generation actions in these tests. */
     private const GENERATE_MODEL = 'global.anthropic.claude-sonnet-4-5-20250929-v1:0';
@@ -66,9 +64,7 @@ final class full_pipeline_test extends \advanced_testcase {
     /** @var \stdClass A real Moodle test user (not admin). */
     private \stdClass $testuser;
 
-    // -------------------------------------------------------------------------
-    // Fixture helpers
-    // -------------------------------------------------------------------------
+    // Fixture helpers.
 
     /**
      * Provider-level config (no real AWS creds — we never hit the network).
@@ -118,7 +114,7 @@ final class full_pipeline_test extends \advanced_testcase {
                 'enabled'  => true,
                 'settings' => [
                     'model'      => self::EMBED_MODEL,
-                    'dimensions' => '', // Use model default (1024).
+                    'dimensions' => '', // Empty string means use the model default dimension of 1024.
                 ],
             ],
         ];
@@ -166,9 +162,7 @@ final class full_pipeline_test extends \advanced_testcase {
         ]);
     }
 
-    // -------------------------------------------------------------------------
-    // setUp
-    // -------------------------------------------------------------------------
+    // Test fixture setup.
 
     protected function setUp(): void {
         parent::setUp();
@@ -185,9 +179,7 @@ final class full_pipeline_test extends \advanced_testcase {
         );
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers: mock-injectable processor subclasses
-    // -------------------------------------------------------------------------
+    // Helpers: mock-injectable processor subclasses.
 
     /**
      * Build a process_generate_text subclass whose call_converse() uses a mock handler.
@@ -205,14 +197,29 @@ final class full_pipeline_test extends \advanced_testcase {
         MockHandler $mockhandler,
     ): process_generate_text {
         return new class ($provider, $action, $mockhandler) extends process_generate_text {
+            /**
+             * Build the processor double with an injected mock AWS handler.
+             *
+             * @param provider $provider Configured provider.
+             * @param \core_ai\aiactions\base $action Action instance.
+             * @param MockHandler $handler Handler with queued mock results.
+             */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
+                /** @var MockHandler Handler with queued mock results. */
                 private MockHandler $handler,
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Run the Converse call against a mock-handled Bedrock client.
+             *
+             * @param array $args Converse request arguments.
+             * @param string|null $region AWS region override.
+             * @return array|null Mapped API result, or null to signal a retryable throttle.
+             */
             protected function call_converse(array $args, ?string $region): ?array {
                 $client = new \Aws\BedrockRuntime\BedrockRuntimeClient([
                     'region'      => $region ?? 'af-south-1',
@@ -247,14 +254,30 @@ final class full_pipeline_test extends \advanced_testcase {
         MockHandler $mockhandler,
     ): process_embed_text {
         return new class ($provider, $action, $mockhandler) extends process_embed_text {
+            /**
+             * Build the embed processor double with an injected mock AWS handler.
+             *
+             * @param provider $provider Configured provider.
+             * @param embed_text $action Embed action instance.
+             * @param MockHandler $handler Handler with queued mock results.
+             */
             public function __construct(
                 provider $provider,
                 embed_text $action,
+                /** @var MockHandler Handler with queued mock results. */
                 private MockHandler $handler,
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Run the InvokeModel call against a mock-handled Bedrock client.
+             *
+             * @param string $modelid Bedrock model identifier.
+             * @param string $body JSON-encoded request body.
+             * @param string|null $region AWS region override.
+             * @return array|null Parsed embedding result, or null to signal a retryable throttle.
+             */
             protected function call_invoke_model(string $modelid, string $body, ?string $region): ?array {
                 $client = new \Aws\BedrockRuntime\BedrockRuntimeClient([
                     'region'      => $region ?? 'af-south-1',
@@ -291,9 +314,7 @@ final class full_pipeline_test extends \advanced_testcase {
         };
     }
 
-    // =========================================================================
-    // Tests — generate_text
-    // =========================================================================
+    // Tests for the generate_text action.
 
     /**
      * Full pipeline: generate_text → mock Converse → response object + DB rows.
@@ -343,9 +364,7 @@ final class full_pipeline_test extends \advanced_testcase {
         $this->assertEquals(9, (int) $data['completiontokens']);
     }
 
-    // =========================================================================
-    // Tests — summarise_text
-    // =========================================================================
+    // Tests for the summarise_text action.
 
     /**
      * Full pipeline: summarise_text — same Converse-based pipeline, different action class.
@@ -377,11 +396,11 @@ final class full_pipeline_test extends \advanced_testcase {
 
         $processor = $this->make_generate_processor($this->provider, $action, $mockhandler);
 
-        // summarise_text uses a subclass of process_generate_text so we must
-        // instantiate process_summarise_text — but that class is also just
-        // process_generate_text under the hood. For the integration test we
-        // use the shared make_generate_processor helper which exercises the
-        // shared abstract_processor → Converse pathway.
+        // The summarise_text action uses a subclass of process_generate_text so
+        // we would normally instantiate process_summarise_text — but that class
+        // is also just process_generate_text under the hood. For the integration
+        // test we use the shared make_generate_processor helper which exercises
+        // the shared abstract_processor → Converse pathway.
         $response = $processor->process();
 
         $this->assertTrue($response->get_success());
@@ -394,9 +413,7 @@ final class full_pipeline_test extends \advanced_testcase {
         $this->assertEquals(8, (int) $data['completiontokens']);
     }
 
-    // =========================================================================
-    // Tests — explain_text
-    // =========================================================================
+    // Tests for the explain_text action.
 
     /**
      * Full pipeline: explain_text — verifies the explain_text audit table is written.
@@ -435,9 +452,7 @@ final class full_pipeline_test extends \advanced_testcase {
         $this->assertEquals(19, (int) $data['completiontokens']);
     }
 
-    // =========================================================================
-    // Tests — embed_text (Titan v2)
-    // =========================================================================
+    // Tests for the embed_text action (Titan v2).
 
     /**
      * Full pipeline: embed_text with Titan v2 mock response.
@@ -512,9 +527,7 @@ final class full_pipeline_test extends \advanced_testcase {
         $this->assertEquals(7, $response->get_tokens());
     }
 
-    // =========================================================================
-    // Tests — error path smoke
-    // =========================================================================
+    // Tests for the error path smoke check.
 
     /**
      * When the Bedrock API returns an error, the response must be a failure object
@@ -546,14 +559,29 @@ final class full_pipeline_test extends \advanced_testcase {
         $mockhandler = new MockHandler([$awsexception]);
 
         $processor = new class ($this->provider, $action, $mockhandler) extends process_generate_text {
+            /**
+             * Build the processor double with an injected mock AWS handler.
+             *
+             * @param provider $provider Configured provider.
+             * @param \core_ai\aiactions\base $action Action instance.
+             * @param MockHandler $handler Handler queued with an AWS exception.
+             */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
+                /** @var MockHandler Handler queued with an AWS exception. */
                 private MockHandler $handler,
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Run the Converse call against a mock-handled Bedrock client that raises an error.
+             *
+             * @param array $args Converse request arguments.
+             * @param string|null $region AWS region override.
+             * @return array|null Mapped failure result, or null to signal a retryable throttle.
+             */
             protected function call_converse(array $args, ?string $region): ?array {
                 $client = new \Aws\BedrockRuntime\BedrockRuntimeClient([
                     'region'      => $region ?? 'af-south-1',

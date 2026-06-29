@@ -124,14 +124,29 @@ final class process_generate_text_stream_test extends \advanced_testcase {
         $result = new Result(['stream' => $events]);
 
         return new class ($this->provider, $this->action, $result) extends process_generate_text_stream {
+            /**
+             * Build a stream processor that replays a fixed fake result.
+             *
+             * @param provider $provider The provider instance.
+             * @param \core_ai\aiactions\base $action The action instance.
+             * @param Result $fakeresult The pre-built fake Bedrock stream result.
+             */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
+                /** @var Result The pre-built fake Bedrock stream result. */
                 private Result $fakeresult,
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Replay the fake event stream instead of calling Bedrock.
+             *
+             * @param array $args The request arguments (ignored).
+             * @param string|null $region The AWS region (ignored).
+             * @return \Generator|null
+             */
             protected function open_stream(array $args, ?string $region): ?\Generator {
                 return $this->event_generator($this->fakeresult);
             }
@@ -276,6 +291,13 @@ final class process_generate_text_stream_test extends \advanced_testcase {
      */
     public function test_stream_empty_response_yields_error(): void {
         $processor = new class ($this->provider, $this->action) extends process_generate_text_stream {
+            /**
+             * Replay an empty SDK result instead of calling Bedrock.
+             *
+             * @param array $args The request arguments (ignored).
+             * @param string|null $region The AWS region (ignored).
+             * @return \Generator|null
+             */
             protected function open_stream(array $args, ?string $region): ?\Generator {
                 return $this->event_generator(new Result([]));
             }
@@ -296,6 +318,11 @@ final class process_generate_text_stream_test extends \advanced_testcase {
      */
     public function test_aws_exception_yields_error_event(): void {
         $processor = new class ($this->provider, $this->action) extends process_generate_text_stream {
+            /**
+             * Yield a single error event mapped from a simulated AwsException.
+             *
+             * @return \Generator
+             */
             public function stream(): \Generator {
                 $exception = new AwsException(
                     'Access denied to the requested resource.',

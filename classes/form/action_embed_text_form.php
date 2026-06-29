@@ -45,11 +45,11 @@ class action_embed_text_form extends action_settings_form {
         $mform        = $this->_form;
         $actionconfig = $this->_customdata['actionconfig']['settings'] ?? [];
         $returnurl    = $this->_customdata['returnurl'] ?? null;
-        $actionname   = $this->_customdata['actionname']; // 'embed_text'
-        $action       = $this->_customdata['action'];      // fully-qualified class name
+        $actionname   = $this->_customdata['actionname']; // The 'embed_text' action name.
+        $action       = $this->_customdata['action'];      // Fully-qualified action class name.
         $providerid   = $this->_customdata['providerid'] ?? 0;
 
-        // --- Model dropdown ---------------------------------------------------
+        // Model dropdown.
         $modeloptions = $this->get_model_options($providerid);
         $mform->addElement(
             'select',
@@ -61,7 +61,7 @@ class action_embed_text_form extends action_settings_form {
         $mform->setDefault('model', $actionconfig['model'] ?? self::DEFAULT_MODEL);
         $mform->addHelpButton('model', "action:{$actionname}:model", 'aiprovider_awsbr');
 
-        // --- Dimensions (Titan v2 only) ----------------------------------------
+        // Dimensions (Titan v2 only).
         $dimensionoptions = [
             ''     => get_string('action:embed_text:dimensions_default', 'aiprovider_awsbr'),
             '256'  => '256',
@@ -78,7 +78,7 @@ class action_embed_text_form extends action_settings_form {
         $mform->setDefault('dimensions', (string) ($actionconfig['dimensions'] ?? ''));
         $mform->addHelpButton('dimensions', "action:{$actionname}:dimensions", 'aiprovider_awsbr');
 
-        // --- Hidden fields ----------------------------------------------------
+        // Hidden fields.
         if ($returnurl) {
             $mform->addElement('hidden', 'returnurl', $returnurl);
             $mform->setType('returnurl', PARAM_LOCALURL);
@@ -130,8 +130,8 @@ class action_embed_text_form extends action_settings_form {
                     $config    = json_decode($record->config, true);
                     $rawmodels = $config['availablemodels'] ?? '';
                 }
-            } catch (\Throwable $e) {
-                // Silently fall through to plugin config.
+            } catch (\Throwable $e) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+                // Intentional: silently fall through to plugin config.
             }
         }
 

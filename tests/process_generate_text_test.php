@@ -123,8 +123,7 @@ final class process_generate_text_test extends \advanced_testcase {
     }
 
     // -------------------------------------------------------------------------
-    // build_request_args
-    // -------------------------------------------------------------------------
+    // Tests for build_request_args.
 
     /**
      * A per-request `modeloverride` pinned on the action takes precedence over
@@ -203,8 +202,7 @@ final class process_generate_text_test extends \advanced_testcase {
     }
 
     // -------------------------------------------------------------------------
-    // handle_api_success
-    // -------------------------------------------------------------------------
+    // Tests for handle_api_success.
 
     /**
      * Test that handle_api_success correctly unpacks the Bedrock response.
@@ -226,8 +224,7 @@ final class process_generate_text_test extends \advanced_testcase {
     }
 
     // -------------------------------------------------------------------------
-    // query_ai_api via mock client
-    // -------------------------------------------------------------------------
+    // Tests for query_ai_api via mock client.
 
     /**
      * Inject an Aws\MockHandler into the factory by subclassing bedrock_client_factory.
@@ -247,10 +244,26 @@ final class process_generate_text_test extends \advanced_testcase {
         // We override bedrock_client_factory inline using a local subclass stored
         // in a variable, then swap the processor's factory call via reflection.
         $factory = new class ($provider, $mock) extends bedrock_client_factory {
-            public function __construct(provider $provider, private MockHandler $mockhandler) {
+            /**
+             * Build a factory that hands out clients wired to the mock handler.
+             *
+             * @param provider $provider The provider instance.
+             * @param MockHandler $mockhandler The AWS SDK mock handler.
+             */
+            public function __construct(
+                provider $provider,
+                /** @var MockHandler The AWS SDK mock handler. */
+                private MockHandler $mockhandler,
+            ) {
                 parent::__construct($provider);
             }
 
+            /**
+             * Return a runtime client wired to the mock handler.
+             *
+             * @param string|null $region The AWS region.
+             * @return \Aws\BedrockRuntime\BedrockRuntimeClient
+             */
             public function get_runtime_client(?string $region = null): \Aws\BedrockRuntime\BedrockRuntimeClient {
                 return new \Aws\BedrockRuntime\BedrockRuntimeClient([
                     'region'      => $region ?? 'af-south-1',
@@ -277,14 +290,29 @@ final class process_generate_text_test extends \advanced_testcase {
         // Build a processor using an anonymous subclass of abstract_processor that
         // uses our mock client instead of a real one.
         $processor = new class ($this->provider, $this->action, $mock) extends process_generate_text {
+            /**
+             * Build a processor wired to the mock handler instead of a real client.
+             *
+             * @param provider $provider The provider instance.
+             * @param \core_ai\aiactions\base $action The action to process.
+             * @param MockHandler $mockhandler The AWS SDK mock handler.
+             */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
+                /** @var MockHandler The AWS SDK mock handler. */
                 private MockHandler $mockhandler,
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Run the Converse call against the mock client and unpack a success.
+             *
+             * @param array $args The Bedrock Converse request arguments.
+             * @param string|null $region The AWS region to target.
+             * @return array|null The processed result, or null to signal a throttle retry.
+             */
             protected function call_converse(array $args, ?string $region): ?array {
                 $client = new \Aws\BedrockRuntime\BedrockRuntimeClient([
                     'region'      => $region ?? 'af-south-1',
@@ -326,14 +354,29 @@ final class process_generate_text_test extends \advanced_testcase {
         $mock = new MockHandler([$mockexception]);
 
         $processor = new class ($this->provider, $this->action, $mock) extends process_generate_text {
+            /**
+             * Build a processor wired to the mock handler instead of a real client.
+             *
+             * @param provider $provider The provider instance.
+             * @param \core_ai\aiactions\base $action The action to process.
+             * @param MockHandler $mockhandler The AWS SDK mock handler.
+             */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
+                /** @var MockHandler The AWS SDK mock handler. */
                 private MockHandler $mockhandler,
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Run the Converse call against the mock client, mapping any AWS error.
+             *
+             * @param array $args The Bedrock Converse request arguments.
+             * @param string|null $region The AWS region to target.
+             * @return array|null The processed result, or null to signal a throttle retry.
+             */
             protected function call_converse(array $args, ?string $region): ?array {
                 $client = new \Aws\BedrockRuntime\BedrockRuntimeClient([
                     'region'      => $region ?? 'af-south-1',
@@ -379,21 +422,37 @@ final class process_generate_text_test extends \advanced_testcase {
 
         $callcount = 0;
         $processor = new class ($provider, $this->action, $callcount) extends process_generate_text {
+            /**
+             * Build a processor that counts Converse calls via a referenced counter.
+             *
+             * @param provider $provider The provider instance.
+             * @param \core_ai\aiactions\base $action The action to process.
+             * @param int $callcounter Reference to the caller's Converse call counter.
+             */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
-                private int &$callcounter,
+                /** @var int Reference to the caller's Converse call counter. */
+                private int &$callcounter, // phpcs:ignore moodle.Commenting.VariableComment.Missing
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Throttle on the primary region and return an error on the fallback.
+             *
+             * @param array $args The Bedrock Converse request arguments.
+             * @param string|null $region The AWS region to target.
+             * @return array|null The error result, or null to signal a throttle retry.
+             */
             protected function call_converse(array $args, ?string $region): ?array {
                 $this->callcounter++;
                 // Primary region → throttle; fallback region → error.
                 if ($this->callcounter === 1) {
                     return null; // Simulate ThrottlingException.
                 }
-                return ['success' => false, 'errorcode' => 500, 'error' => 'BedrockError', 'errormessage' => 'Fallback region also failed.'];
+                return ['success' => false, 'errorcode' => 500, 'error' => 'BedrockError',
+                    'errormessage' => 'Fallback region also failed.'];
             }
         };
 
@@ -411,14 +470,29 @@ final class process_generate_text_test extends \advanced_testcase {
         // Provider with no fallbackregion.
         $callcount = 0;
         $processor = new class ($this->provider, $this->action, $callcount) extends process_generate_text {
+            /**
+             * Build a processor that counts Converse calls via a referenced counter.
+             *
+             * @param provider $provider The provider instance.
+             * @param \core_ai\aiactions\base $action The action to process.
+             * @param int $callcounter Reference to the caller's Converse call counter.
+             */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
-                private int &$callcounter,
+                /** @var int Reference to the caller's Converse call counter. */
+                private int &$callcounter, // phpcs:ignore moodle.Commenting.VariableComment.Missing
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Always throttle to simulate a ThrottlingException on every region.
+             *
+             * @param array $args The Bedrock Converse request arguments.
+             * @param string|null $region The AWS region to target.
+             * @return array|null Always null to signal a throttle.
+             */
             protected function call_converse(array $args, ?string $region): ?array {
                 $this->callcounter++;
                 return null; // Simulate ThrottlingException always.
@@ -432,8 +506,7 @@ final class process_generate_text_test extends \advanced_testcase {
     }
 
     // -------------------------------------------------------------------------
-    // Rate limiting
-    // -------------------------------------------------------------------------
+    // Tests for rate limiting.
 
     /**
      * Test that user rate limiting is enforced.
@@ -466,14 +539,29 @@ final class process_generate_text_test extends \advanced_testcase {
                 prompttext: 'Hello',
             );
             return new class ($provider, $action, $callcount) extends process_generate_text {
+                /**
+                 * Build a processor that counts Converse calls via a referenced counter.
+                 *
+                 * @param provider $provider The provider instance.
+                 * @param \core_ai\aiactions\base $action The action to process.
+                 * @param int $counter Reference to the caller's Converse call counter.
+                 */
                 public function __construct(
                     provider $provider,
                     \core_ai\aiactions\base $action,
-                    private int &$counter,
+                    /** @var int Reference to the caller's Converse call counter. */
+                    private int &$counter, // phpcs:ignore moodle.Commenting.VariableComment.Missing
                 ) {
                     parent::__construct($provider, $action);
                 }
 
+                /**
+                 * Return a canned successful Converse result and bump the counter.
+                 *
+                 * @param array $args The Bedrock Converse request arguments.
+                 * @param string|null $region The AWS region to target.
+                 * @return array|null The canned success result.
+                 */
                 protected function call_converse(array $args, ?string $region): ?array {
                     $this->counter++;
                     return [
@@ -535,6 +623,13 @@ final class process_generate_text_test extends \advanced_testcase {
                 prompttext: 'Hello',
             );
             return new class ($provider, $action) extends process_generate_text {
+                /**
+                 * Return a canned successful Converse result without any client call.
+                 *
+                 * @param array $args The Bedrock Converse request arguments.
+                 * @param string|null $region The AWS region to target.
+                 * @return array|null The canned success result.
+                 */
                 protected function call_converse(array $args, ?string $region): ?array {
                     return [
                         'success'          => true,
@@ -563,8 +658,7 @@ final class process_generate_text_test extends \advanced_testcase {
     }
 
     // -------------------------------------------------------------------------
-    // map_aws_exception
-    // -------------------------------------------------------------------------
+    // Tests for map_aws_exception.
 
     /**
      * Test that all known AWS error codes map to the correct HTTP status codes.
@@ -587,6 +681,8 @@ final class process_generate_text_test extends \advanced_testcase {
     }
 
     /**
+     * Data provider mapping AWS error codes to their expected HTTP status codes.
+     *
      * @return array
      */
     public static function aws_error_code_provider(): array {
@@ -600,8 +696,7 @@ final class process_generate_text_test extends \advanced_testcase {
     }
 
     // -------------------------------------------------------------------------
-    // image block building
-    // -------------------------------------------------------------------------
+    // Tests for image block building.
 
     /**
      * Test that build_image_blocks returns empty array for non-existent file.

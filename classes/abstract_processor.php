@@ -187,7 +187,7 @@ abstract class abstract_processor extends process_base {
             return [
                 'success'      => false,
                 'errorcode'    => 500,
-                // 'error' (error name) is required on Moodle main's error
+                // The 'error' (error name) key is required on Moodle main's error
                 // responses; harmless extra key on 5.0 (ignored).
                 'error'        => 'BedrockError',
                 'errormessage' => $e->getMessage(),

@@ -16,8 +16,6 @@
 
 namespace aiprovider_awsbr;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Lists the Bedrock inference profiles that are actually invokable for this
  * provider, so model selections can be validated instead of failing silently
@@ -39,9 +37,12 @@ class model_catalog {
     private const CACHE_DEF = 'model_catalog';
 
     /**
+     * Build a catalog bound to a specific Bedrock provider.
+     *
      * @param provider $provider The Bedrock provider whose region/credentials to use.
      */
     public function __construct(
+        /** @var provider The Bedrock provider whose region/credentials to use. */
         protected provider $provider,
     ) {
     }

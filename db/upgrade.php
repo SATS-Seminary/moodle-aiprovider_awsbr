@@ -22,9 +22,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
+ * Run the aiprovider_awsbr database upgrade steps.
+ *
  * @param int $oldversion The version we're upgrading from.
  * @return bool
  */

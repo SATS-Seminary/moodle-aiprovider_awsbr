@@ -82,9 +82,7 @@ final class speech_test extends \advanced_testcase {
         ]);
     }
 
-    // -------------------------------------------------------------------------
-    // Client factory.
-    // -------------------------------------------------------------------------
+    // Tests for the client factory.
 
     public function test_speech_region_defaults_to_generative_capable_region(): void {
         $factory = new speech_client_factory($this->make_provider());
@@ -99,9 +97,7 @@ final class speech_test extends \advanced_testcase {
         $this->assertSame('eu-west-2', $factory->get_s3_client()->getRegion());
     }
 
-    // -------------------------------------------------------------------------
-    // Polly synthesis.
-    // -------------------------------------------------------------------------
+    // Tests for Polly synthesis.
 
     public function test_synthesize_uses_generative_engine_and_returns_audio(): void {
         $mock = new MockHandler();
@@ -155,9 +151,7 @@ final class speech_test extends \advanced_testcase {
         $this->assertSame('generative', $cmd['Engine']);
     }
 
-    // -------------------------------------------------------------------------
-    // Transcribe.
-    // -------------------------------------------------------------------------
+    // Tests for Transcribe.
 
     public function test_start_transcription_requests_vtt_subtitles_to_bucket(): void {
         $mock = new MockHandler();
@@ -199,14 +193,12 @@ final class speech_test extends \advanced_testcase {
         $this->assertSame(['https://s3/subs.vtt'], $result['subtitleuris']);
     }
 
-    // -------------------------------------------------------------------------
-    // S3 + failure handling.
-    // -------------------------------------------------------------------------
+    // Tests for S3 and failure handling.
 
     public function test_put_and_get_object_use_the_bucket(): void {
         $mock = new MockHandler();
-        $mock->append(new Result([]));                                   // putObject
-        $mock->append(new Result(['Body' => Utils::streamFor('BYTES')])); // getObject
+        $mock->append(new Result([]));                                   // Mocked putObject response.
+        $mock->append(new Result(['Body' => Utils::streamFor('BYTES')])); // Mocked getObject response.
         $service = new speech($this->make_provider(), s3: $this->mock_client(S3Client::class, $mock));
 
         $put = $service->put_object('out/a.mp3', 'BYTES', 'audio/mpeg');

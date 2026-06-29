@@ -16,8 +16,6 @@
 
 namespace aiprovider_awsbr;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * Streaming variant of process_generate_text.
  *

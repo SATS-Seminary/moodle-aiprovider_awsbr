@@ -82,7 +82,7 @@ $string['systeminstruction_generate_text'] = 'You are a helpful assistant. Answe
 $string['systeminstruction_summarise_text'] = 'Summarise the following text concisely while preserving the key information.';
 $string['systeminstruction_explain_text'] = 'Explain the following text in clearer, simpler terms.';
 
-// ---- Strings added by stream A1 + A2 + A4 --------------------------------
+// Strings added by stream A1 + A2 + A4.
 
 // Settings headings.
 $string['credentials_heading'] = 'AWS Credentials';

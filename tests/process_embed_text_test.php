@@ -55,9 +55,7 @@ final class process_embed_text_test extends \advanced_testcase {
     /** @var embed_text The action instance. */
     private embed_text $action;
 
-    // -------------------------------------------------------------------------
-    // Fixtures
-    // -------------------------------------------------------------------------
+    // Fixtures.
 
     /**
      * A sample 1024-dim float vector for test payloads (first 4 values differ).
@@ -101,7 +99,8 @@ final class process_embed_text_test extends \advanced_testcase {
             'secretaccesskey'        => 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
             'region'                 => 'af-south-1',
             'fallbackregion'         => '',
-            'availablemodels'        => "amazon.titan-embed-text-v2:0|Titan Embed v2\ncohere.embed-multilingual-v3|Cohere Embed v3\n",
+            'availablemodels'        => "amazon.titan-embed-text-v2:0|Titan Embed v2\n"
+                . "cohere.embed-multilingual-v3|Cohere Embed v3\n",
             'enableuserratelimit'    => false,
             'userratelimit'          => 0,
             'enableglobalratelimit'  => false,
@@ -124,9 +123,7 @@ final class process_embed_text_test extends \advanced_testcase {
         ];
     }
 
-    // -------------------------------------------------------------------------
-    // Helper: build a mockable processor subclass
-    // -------------------------------------------------------------------------
+    // Helper: build a mockable processor subclass.
 
     /**
      * Build an anonymous process_embed_text subclass whose call_invoke_model()
@@ -140,23 +137,37 @@ final class process_embed_text_test extends \advanced_testcase {
         callable $resultsfn,
     ): process_embed_text {
         return new class ($provider, $action, $resultsfn) extends process_embed_text {
+            /**
+             * Build a processor whose Bedrock call is driven by a callback.
+             *
+             * @param provider $provider The provider instance.
+             * @param embed_text $action The embed_text action instance.
+             * @param \Closure $fn Callback returning the fake InvokeModel result.
+             */
             public function __construct(
                 provider $provider,
                 embed_text $action,
+                /** @var \Closure Callback returning the fake InvokeModel result. */
                 private \Closure $fn,
             ) {
                 parent::__construct($provider, $action);
             }
 
+            /**
+             * Return the fake InvokeModel result from the injected callback.
+             *
+             * @param string $modelid The Bedrock model id.
+             * @param string $body The request body JSON.
+             * @param string|null $region The AWS region.
+             * @return array|null The fake result, or null.
+             */
             protected function call_invoke_model(string $modelid, string $body, ?string $region): ?array {
                 return ($this->fn)($modelid, $body, $region);
             }
         };
     }
 
-    // -------------------------------------------------------------------------
-    // Set up
-    // -------------------------------------------------------------------------
+    // Set up.
 
     protected function setUp(): void {
         parent::setUp();
@@ -180,9 +191,7 @@ final class process_embed_text_test extends \advanced_testcase {
         );
     }
 
-    // =========================================================================
-    // Tests — build_request_body
-    // =========================================================================
+    // Tests for build_request_body.
 
     /**
      * Titan v2 request body must contain inputText, normalize, and optional dimensions.
@@ -229,9 +238,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $this->assertEquals('END', $data['truncate']);
     }
 
-    // =========================================================================
-    // Tests — parse_response_body
-    // =========================================================================
+    // Tests for parse_response_body.
 
     /**
      * parse_response_body correctly unpacks a Titan v2 response.
@@ -286,9 +293,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $this->assertEquals(500, $result['errorcode']);
     }
 
-    // =========================================================================
-    // Tests — successful process() end-to-end (Titan v2)
-    // =========================================================================
+    // Tests for a successful process() end-to-end (Titan v2).
 
     /**
      * A full process() call returns a successful response_embed_text with vector + tokens.
@@ -324,9 +329,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $this->assertEquals('embed_text', $response->get_actionname());
     }
 
-    // =========================================================================
-    // Tests — successful process() end-to-end (Cohere v3)
-    // =========================================================================
+    // Tests for a successful process() end-to-end (Cohere v3).
 
     /**
      * process() correctly routes and returns a Cohere v3 embedding response.
@@ -366,9 +369,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $this->assertEquals('cohere.embed-multilingual-v3', $response->get_model_used());
     }
 
-    // =========================================================================
-    // Tests — error handling
-    // =========================================================================
+    // Tests for error handling.
 
     /**
      * An AccessDeniedException returns a 403 response.
@@ -379,7 +380,8 @@ final class process_embed_text_test extends \advanced_testcase {
         $processor = $this->make_processor(
             $this->provider,
             $this->action,
-            fn() => ['success' => false, 'errorcode' => 403, 'error' => 'AccessDeniedException', 'errormessage' => 'Access denied.'],
+            fn() => ['success' => false, 'errorcode' => 403, 'error' => 'AccessDeniedException',
+                'errormessage' => 'Access denied.'],
         );
 
         $response = $processor->process();
@@ -396,7 +398,8 @@ final class process_embed_text_test extends \advanced_testcase {
         $processor = $this->make_processor(
             $this->provider,
             $this->action,
-            fn() => ['success' => false, 'errorcode' => 404, 'error' => 'ModelNotReadyException', 'errormessage' => 'Model not ready.'],
+            fn() => ['success' => false, 'errorcode' => 404, 'error' => 'ModelNotReadyException',
+                'errormessage' => 'Model not ready.'],
         );
 
         $response = $processor->process();
@@ -500,12 +503,14 @@ final class process_embed_text_test extends \advanced_testcase {
         $this->assertEquals(1, $callcount, 'Only primary should be attempted when no fallback region is set.');
     }
 
-    // =========================================================================
-    // Tests — map_aws_exception
-    // =========================================================================
+    // Tests for map_aws_exception.
 
     /**
+     * Each AWS error code maps to the expected HTTP status code.
+     *
      * @dataProvider aws_error_code_provider
+     * @param string $awscode The AWS error code returned by the SDK.
+     * @param int $expectedhttpcode The HTTP status code the mapping should produce.
      */
     public function test_map_aws_exception(string $awscode, int $expectedhttpcode): void {
         $processor = new process_embed_text($this->provider, $this->action);
@@ -523,6 +528,8 @@ final class process_embed_text_test extends \advanced_testcase {
     }
 
     /**
+     * Data provider of AWS error codes mapped to expected HTTP status codes.
+     *
      * @return array
      */
     public static function aws_error_code_provider(): array {
@@ -535,9 +542,7 @@ final class process_embed_text_test extends \advanced_testcase {
         ];
     }
 
-    // =========================================================================
-    // Tests — response_embed_text class
-    // =========================================================================
+    // Tests for the response_embed_text class.
 
     /**
      * response_embed_text correctly stores and returns all fields.
@@ -577,9 +582,7 @@ final class process_embed_text_test extends \advanced_testcase {
         $this->assertNull($response->get_vector());
     }
 
-    // =========================================================================
-    // Tests — embed_text action class
-    // =========================================================================
+    // Tests for the embed_text action class.
 
     /**
      * embed_text::get_response_classname() returns the plugin-local response class.

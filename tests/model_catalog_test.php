@@ -50,6 +50,12 @@ final class model_catalog_test extends \advanced_testcase {
             // phpcs:ignore
             public function __construct() {
             }
+            /**
+             * Return a fixed live model list, bypassing AWS.
+             *
+             * @param bool $refresh Ignored in this stub.
+             * @return array The stubbed model list.
+             */
             public function list(bool $refresh = false): array {
                 return [
                     ['id' => 'eu.anthropic.claude-sonnet-4-6', 'name' => 'EU Sonnet 4.6', 'status' => 'ACTIVE'],
@@ -87,6 +93,12 @@ final class model_catalog_test extends \advanced_testcase {
             // phpcs:ignore
             public function __construct() {
             }
+            /**
+             * Return an empty live model list, simulating an unreachable control plane.
+             *
+             * @param bool $refresh Ignored in this stub.
+             * @return array Always empty.
+             */
             public function list(bool $refresh = false): array {
                 return [];
             }

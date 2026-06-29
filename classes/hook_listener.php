@@ -44,7 +44,7 @@ class hook_listener {
 
         $mform = $hook->mform;
 
-        // === Authentication mode ===
+        // Authentication mode.
         $mform->addElement(
             'select',
             'authmode',
@@ -59,7 +59,7 @@ class hook_listener {
         $mform->addHelpButton('authmode', 'authmode', 'aiprovider_awsbr');
         $mform->setDefault('authmode', 'api_key');
 
-        // === Bedrock API key (bearer token) — shown when authmode = api_key ===
+        // Bedrock API key (bearer token), shown when authmode = api_key.
         $mform->addElement(
             'passwordunmask',
             'apikey',
@@ -69,7 +69,7 @@ class hook_listener {
         $mform->addHelpButton('apikey', 'apikey', 'aiprovider_awsbr');
         $mform->hideIf('apikey', 'authmode', 'neq', 'api_key');
 
-        // === Static credentials (shown when authmode = static) ===
+        // Static credentials, shown when authmode = static.
         $mform->addElement(
             'text',
             'accesskeyid',
@@ -89,7 +89,7 @@ class hook_listener {
         $mform->addHelpButton('secretaccesskey', 'secretaccesskey', 'aiprovider_awsbr');
         $mform->hideIf('secretaccesskey', 'authmode', 'neq', 'static');
 
-        // === STS Assume-role (shown when authmode = assume_role) ===
+        // STS assume-role, shown when authmode = assume_role.
         $mform->addElement(
             'text',
             'assumerolearn',
@@ -110,7 +110,7 @@ class hook_listener {
         $mform->setDefault('assumerolesessionname', 'moodle-bedrock');
         $mform->hideIf('assumerolesessionname', 'authmode', 'neq', 'assume_role');
 
-        // === Region ===
+        // Region.
         $mform->addElement(
             'text',
             'region',
@@ -131,7 +131,7 @@ class hook_listener {
         $mform->setType('fallbackregion', PARAM_TEXT);
         $mform->addHelpButton('fallbackregion', 'fallbackregion', 'aiprovider_awsbr');
 
-        // === Speech (Polly text->speech, Transcribe speech->text) ===
+        // Speech settings (Polly text->speech, Transcribe speech->text).
         $mform->addElement(
             'static',
             'speech_heading',
@@ -184,7 +184,7 @@ class hook_listener {
         $mform->setDefault('speechvoice', 'Ambre');
         $mform->addHelpButton('speechvoice', 'speechvoice', 'aiprovider_awsbr');
 
-        // === Available inference profile IDs ===
+        // Available inference profile IDs.
         $mform->addElement(
             'textarea',
             'availablemodels',
@@ -215,7 +215,7 @@ class hook_listener {
             . \html_writer::div(get_string('models_browse_desc', 'aiprovider_awsbr'), 'text-muted small mt-1')
         );
 
-        // === Proxy / CA note ===
+        // Proxy / CA note.
         $mform->addElement(
             'static',
             'proxy_note_body',

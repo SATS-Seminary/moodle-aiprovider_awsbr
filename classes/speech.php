@@ -42,15 +42,21 @@ class speech {
     private speech_client_factory $factory;
 
     /**
+     * Build the speech wrapper, optionally with injected AWS clients for testing.
+     *
      * @param provider                      $provider   the provider instance (IAM-auth config + speech settings).
      * @param PollyClient|null              $polly      injected client (tests); else built on demand.
      * @param TranscribeServiceClient|null  $transcribe injected client (tests).
      * @param S3Client|null                 $s3         injected client (tests).
      */
     public function __construct(
+        /** @var provider the provider instance (IAM-auth config + speech settings). */
         private provider $provider,
+        /** @var PollyClient|null injected Polly client (tests); else built on demand. */
         private ?PollyClient $polly = null,
+        /** @var TranscribeServiceClient|null injected Transcribe client (tests). */
         private ?TranscribeServiceClient $transcribe = null,
+        /** @var S3Client|null injected S3 client (tests). */
         private ?S3Client $s3 = null,
     ) {
         $this->factory = new speech_client_factory($provider);
@@ -291,6 +297,8 @@ class speech {
     }
 
     /**
+     * Get the configured working S3 bucket name.
+     *
      * @return string the configured working S3 bucket.
      */
     public function bucket(): string {
@@ -298,6 +306,8 @@ class speech {
     }
 
     /**
+     * Get the configured Polly voice id, falling back to a sensible default.
+     *
      * @return string the configured Polly voice id.
      */
     private function voice(): string {
@@ -308,6 +318,8 @@ class speech {
     }
 
     /**
+     * Get the configured Polly synthesis engine, defaulting to generative.
+     *
      * @return string the synthesis engine (generative by default — best quality).
      */
     private function engine(): string {
@@ -316,6 +328,8 @@ class speech {
     }
 
     /**
+     * Lazily build (or return the injected) Polly client.
+     *
      * @return PollyClient
      */
     private function polly(): PollyClient {
@@ -323,6 +337,8 @@ class speech {
     }
 
     /**
+     * Lazily build (or return the injected) Transcribe client.
+     *
      * @return TranscribeServiceClient
      */
     private function transcribe(): TranscribeServiceClient {
@@ -330,6 +346,8 @@ class speech {
     }
 
     /**
+     * Lazily build (or return the injected) S3 client.
+     *
      * @return S3Client
      */
     private function s3(): S3Client {

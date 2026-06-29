@@ -52,9 +52,7 @@ final class bedrock_client_factory_test extends \advanced_testcase {
         );
     }
 
-    // -------------------------------------------------------------------------
-    // get_runtime_client
-    // -------------------------------------------------------------------------
+    // Tests for get_runtime_client.
 
     /**
      * Test that get_runtime_client returns a BedrockRuntimeClient for static auth mode.
@@ -109,9 +107,7 @@ final class bedrock_client_factory_test extends \advanced_testcase {
         $this->assertEquals('us-east-1', $client->getRegion());
     }
 
-    // -------------------------------------------------------------------------
-    // build_credentials_provider — static mode
-    // -------------------------------------------------------------------------
+    // Tests for build_credentials_provider in static mode.
 
     /**
      * Test that static authmode produces a Credentials object with the right key.
@@ -133,9 +129,7 @@ final class bedrock_client_factory_test extends \advanced_testcase {
         $this->assertEquals('SECRET_TEST', $creds->getSecretKey());
     }
 
-    // -------------------------------------------------------------------------
-    // build_credentials_provider — instance_role mode
-    // -------------------------------------------------------------------------
+    // Tests for build_credentials_provider in instance_role mode.
 
     /**
      * Test that instance_role authmode produces an InstanceProfileProvider callable.
@@ -154,9 +148,7 @@ final class bedrock_client_factory_test extends \advanced_testcase {
         $this->assertInstanceOf(InstanceProfileProvider::class, $creds);
     }
 
-    // -------------------------------------------------------------------------
-    // build_credentials_provider — unknown authmode fallback
-    // -------------------------------------------------------------------------
+    // Tests for build_credentials_provider unknown authmode fallback.
 
     /**
      * Test that an unknown authmode falls back to the SDK default provider (callable).
@@ -175,9 +167,7 @@ final class bedrock_client_factory_test extends \advanced_testcase {
         $this->assertIsCallable($creds);
     }
 
-    // -------------------------------------------------------------------------
-    // configure_proxy
-    // -------------------------------------------------------------------------
+    // Tests for configure_proxy.
 
     /**
      * Test that configure_proxy does nothing when proxyhost is empty.
@@ -258,9 +248,7 @@ final class bedrock_client_factory_test extends \advanced_testcase {
         $CFG->proxyhost = '';
     }
 
-    // -------------------------------------------------------------------------
-    // is_provider_configured — checked via provider, not factory directly
-    // -------------------------------------------------------------------------
+    // Tests for is_provider_configured, checked via provider, not factory directly.
 
     /**
      * Static auth: configured when both key and secret are present.

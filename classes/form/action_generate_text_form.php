@@ -42,7 +42,7 @@ class action_generate_text_form extends action_settings_form {
         $action       = $this->_customdata['action'];
         $providerid   = $this->_customdata['providerid'] ?? 0;
 
-        // --- Model dropdown -------------------------------------------
+        // Model dropdown.
         // Build options from the provider's availablemodels textarea setting.
         $modeloptions = $this->get_model_options($providerid);
         $mform->addElement(
@@ -55,7 +55,7 @@ class action_generate_text_form extends action_settings_form {
         $mform->setDefault('model', $actionconfig['model'] ?? '');
         $mform->addHelpButton('model', "action:{$actionname}:model", 'aiprovider_awsbr');
 
-        // --- System instruction textarea --------------------------------
+        // System instruction textarea.
         $mform->addElement(
             'textarea',
             'systeminstruction',
@@ -66,7 +66,7 @@ class action_generate_text_form extends action_settings_form {
         $mform->setDefault('systeminstruction', $actionconfig['systeminstruction'] ?? $action::get_system_instruction());
         $mform->addHelpButton('systeminstruction', "action:{$actionname}:systeminstruction", 'aiprovider_awsbr');
 
-        // --- Max tokens -------------------------------------------------
+        // Max tokens.
         $mform->addElement(
             'text',
             'maxtokens',
@@ -79,7 +79,7 @@ class action_generate_text_form extends action_settings_form {
         $mform->addRule('maxtokens', null, 'numeric', null, 'client');
         $mform->addHelpButton('maxtokens', "action:{$actionname}:maxtokens", 'aiprovider_awsbr');
 
-        // --- Temperature ------------------------------------------------
+        // Temperature.
         $mform->addElement(
             'text',
             'temperature',
@@ -90,7 +90,7 @@ class action_generate_text_form extends action_settings_form {
         $mform->setDefault('temperature', $actionconfig['temperature'] ?? 0.7);
         $mform->addHelpButton('temperature', "action:{$actionname}:temperature", 'aiprovider_awsbr');
 
-        // --- Top-P -------------------------------------------------------
+        // Top-P.
         $mform->addElement(
             'text',
             'topp',
@@ -101,7 +101,7 @@ class action_generate_text_form extends action_settings_form {
         $mform->setDefault('topp', $actionconfig['topp'] ?? 1.0);
         $mform->addHelpButton('topp', "action:{$actionname}:topp", 'aiprovider_awsbr');
 
-        // --- Hidden fields -----------------------------------------------
+        // Hidden fields.
         if ($returnurl) {
             $mform->addElement('hidden', 'returnurl', $returnurl);
             $mform->setType('returnurl', PARAM_LOCALURL);
@@ -140,8 +140,8 @@ class action_generate_text_form extends action_settings_form {
                     $config    = json_decode($record->config, true);
                     $rawmodels = $config['availablemodels'] ?? '';
                 }
-            } catch (\Throwable $e) {
-                // Silently fall through to plugin config.
+            } catch (\Throwable $e) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
+                // Intentional: silently fall through to plugin config.
             }
         }
 

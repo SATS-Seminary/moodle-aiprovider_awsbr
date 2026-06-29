@@ -38,9 +38,7 @@ if ($hassiteconfig) {
     // until Moodle ships a replacement; this is the prescribed approach for now).
     require_once($CFG->libdir . '/classes/aws/admin_settings_aws_region.php');
 
-    // -------------------------------------------------------------------------
-    // Credentials block
-    // -------------------------------------------------------------------------
+    // Credentials block.
 
     $settings->add(new admin_setting_heading(
         'aiprovider_awsbr/credentials_heading',
@@ -96,9 +94,7 @@ if ($hassiteconfig) {
         PARAM_TEXT,
     ));
 
-    // -------------------------------------------------------------------------
-    // Region block
-    // -------------------------------------------------------------------------
+    // Region block.
 
     $settings->add(new admin_setting_heading(
         'aiprovider_awsbr/region_heading',
@@ -125,9 +121,7 @@ if ($hassiteconfig) {
     // Speech (Polly / Transcribe) config is per-instance — defined on the
     // provider-instance form via hook_listener, not as a global setting.
 
-    // -------------------------------------------------------------------------
-    // Models block
-    // -------------------------------------------------------------------------
+    // Models block.
 
     $settings->add(new admin_setting_heading(
         'aiprovider_awsbr/models_heading',
@@ -149,9 +143,7 @@ if ($hassiteconfig) {
         PARAM_TEXT,
     ));
 
-    // -------------------------------------------------------------------------
-    // Rate limiting block
-    // -------------------------------------------------------------------------
+    // Rate limiting block.
 
     $settings->add(new admin_setting_heading(
         'aiprovider_awsbr/ratelimit_heading',
