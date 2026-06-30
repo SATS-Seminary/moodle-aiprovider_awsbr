@@ -210,6 +210,31 @@ final class speech_test extends \advanced_testcase {
         $this->assertSame('BYTES', $get['body']);
     }
 
+    public function test_put_object_accepts_a_stream_resource_body(): void {
+        $mock = new MockHandler();
+        $mock->append(new Result([]));
+        $service = new speech($this->make_provider(), s3: $this->mock_client(S3Client::class, $mock));
+
+        // A large upload streams from an open handle rather than a buffered string.
+        $stream = Utils::tryFopen('php://temp', 'r+');
+        fwrite($stream, 'STREAMED_BYTES');
+        rewind($stream);
+
+        $put = $service->put_object('out/big.mp3', $stream, 'audio/mpeg');
+        $this->assertTrue($put['success']);
+        $this->assertSame('s3://nida-speech/out/big.mp3', $put['uri']);
+
+        $cmd = $mock->getLastCommand();
+        $this->assertSame('PutObject', $cmd->getName());
+        $this->assertSame('nida-speech', $cmd['Bucket']);
+        $this->assertSame('out/big.mp3', $cmd['Key']);
+        // The body was passed through as a stream, not buffered into a string — the
+        // point of the streaming upload (we don't assert the consumed stream's bytes,
+        // which a casted read would have drained).
+        $this->assertIsNotString($cmd['Body']);
+        fclose($stream);
+    }
+
     public function test_delete_object(): void {
         $mock = new MockHandler();
         $mock->append(new Result([]));

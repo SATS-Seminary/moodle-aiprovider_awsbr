@@ -210,12 +210,17 @@ class speech {
     /**
      * Store an object in the working S3 bucket.
      *
-     * @param string $key
-     * @param string $body
-     * @param string|null $contenttype
+     * The body may be a plain string (small payloads) OR an open stream resource
+     * — the latter lets large uploads (e.g. a multi-hundred-MB lecture) be
+     * streamed to S3 without buffering the whole file in memory (M3). The AWS SDK
+     * consumes a resource/StreamInterface body lazily.
+     *
+     * @param string          $key
+     * @param string|resource $body         the bytes, or an open (read) stream resource.
+     * @param string|null     $contenttype
      * @return array{success:bool, uri?:string, errorcode?:int, errormessage?:string}
      */
-    public function put_object(string $key, string $body, ?string $contenttype = null): array {
+    public function put_object(string $key, $body, ?string $contenttype = null): array {
         try {
             $args = ['Bucket' => $this->bucket(), 'Key' => $key, 'Body' => $body];
             if ($contenttype !== null) {

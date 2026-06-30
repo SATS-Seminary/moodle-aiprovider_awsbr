@@ -2,6 +2,11 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.1.4 — 2026-06-30
+- `speech::put_object()` now accepts a stream resource as well as a string body,
+  so large uploads (e.g. long lecture audio) stream to S3 instead of being read
+  whole into memory.
+
 ## 1.1.3 — 2026-06-28
 - Add `speech::presigned_get_url()` — time-limited presigned S3 GET URLs so
   consumers can deliver generated audio from a private bucket via a stable,
