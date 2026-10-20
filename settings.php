@@ -34,9 +34,8 @@ if ($hassiteconfig) {
     // This file is included by Moodle's admin settings framework when the
     // 'aiprovider_awsbr' section is requested.
 
-    // Load the AWS region class (deprecated notice suppressed — we still need it
-    // until Moodle ships a replacement; this is the prescribed approach for now).
-    require_once($CFG->libdir . '/classes/aws/admin_settings_aws_region.php');
+    // Region fields use this plugin's own setting class (autoloaded). Core's
+    // \core\aws\admin_settings_aws_region is deprecated since 4.5 and due for removal in 6.0.
 
     // Credentials block.
 
@@ -103,7 +102,7 @@ if ($hassiteconfig) {
     ));
 
     // Primary region.
-    $settings->add(new \core\aws\admin_settings_aws_region(
+    $settings->add(new \aiprovider_awsbr\admin_setting_awsregion(
         'aiprovider_awsbr/region',
         get_string('region', 'aiprovider_awsbr'),
         get_string('region_help', 'aiprovider_awsbr'),
@@ -111,7 +110,7 @@ if ($hassiteconfig) {
     ));
 
     // Fallback region (optional; blank = disabled).
-    $settings->add(new \core\aws\admin_settings_aws_region(
+    $settings->add(new \aiprovider_awsbr\admin_setting_awsregion(
         'aiprovider_awsbr/fallbackregion',
         get_string('fallbackregion', 'aiprovider_awsbr'),
         get_string('fallbackregion_help', 'aiprovider_awsbr'),

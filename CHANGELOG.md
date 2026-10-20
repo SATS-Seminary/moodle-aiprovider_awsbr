@@ -2,6 +2,18 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.2.0 — 2026-10-13
+- Moodle 5.3 compatibility, while keeping Moodle 5.0 support (`requires` is unchanged).
+- Region settings no longer depend on core's `\core\aws\admin_settings_aws_region`
+  (deprecated since Moodle 4.5, removal planned for 6.0). The plugin now ships its
+  own `admin_setting_awsregion` with a built-in region list; free-text regions are
+  still accepted.
+- Reviewed the core AI API differences between 5.0 and 5.3 (error name in
+  responses, token columns moved to `ai_action_register`, `\core_admin` setting
+  class aliases, `public/` web root). The processors, `embed_text` action and its
+  own audit table already work on both; no code change was needed there.
+- CI matrix now includes `MOODLE_503_STABLE`.
+
 ## 1.1.4 — 2026-06-30
 - `speech::put_object()` now accepts a stream resource as well as a string body,
   so large uploads (e.g. long lecture audio) stream to S3 instead of being read

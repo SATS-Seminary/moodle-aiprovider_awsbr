@@ -10,7 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-22.04
     # Moodle main is a moving target — failures there shouldn't block. The
-    # MOODLE_500_STABLE cells stay required.
+    # MOODLE_500_STABLE and MOODLE_503_STABLE cells stay required.
     continue-on-error: ${{ matrix.moodle-branch == 'main' }}
 
     services:
@@ -38,7 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         php: ['8.2', '8.3']
-        moodle-branch: ['MOODLE_500_STABLE', 'main']
+        moodle-branch: ['MOODLE_500_STABLE', 'MOODLE_503_STABLE', 'main']
         database: ['pgsql', 'mariadb']
         exclude:
           # Moodle main requires PHP 8.3+ (composer.json says >=8.3.0).
