@@ -43,7 +43,9 @@ jobs:
         moodle-branch: ['MOODLE_500_STABLE', 'MOODLE_503_STABLE', 'main']
         database: ['pgsql', 'mariadb']
         exclude:
-          # Moodle main requires PHP 8.3+ (composer.json says >=8.3.0).
+          # Moodle 5.3 and main require PHP 8.3+ (composer.json says >=8.3.0).
+          - php: '8.2'
+            moodle-branch: 'MOODLE_503_STABLE'
           - php: '8.2'
             moodle-branch: 'main'
 
