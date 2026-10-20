@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'aiprovider_awsbr';
-$plugin->version   = 2026101300;
-$plugin->release   = '1.2.0';
+$plugin->version   = 2026102000;
+$plugin->release   = '1.3.0';
 $plugin->requires  = 2025040800; // Moodle 5.0 AI subsystem; 5.3 also supported.
 $plugin->maturity  = MATURITY_STABLE;

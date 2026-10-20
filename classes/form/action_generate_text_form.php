@@ -27,6 +27,7 @@ use core_ai\form\action_settings_form;
  *  - maxtokens        : integer (1–8192).
  *  - temperature      : float 0.0–1.0.
  *  - topp             : float 0.0–1.0.
+ *  - effort           : '' (model default) | low | medium | high.
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
@@ -100,6 +101,16 @@ class action_generate_text_form extends action_settings_form {
         $mform->setType('topp', PARAM_FLOAT);
         $mform->setDefault('topp', $actionconfig['topp'] ?? 1.0);
         $mform->addHelpButton('topp', "action:{$actionname}:topp", 'aiprovider_awsbr');
+
+        // Effort (Claude 4.6 and later; ignored for other models).
+        $effortoptions = ['' => get_string('effort_default', 'aiprovider_awsbr')];
+        foreach (\aiprovider_awsbr\model_capabilities::EFFORT_LEVELS as $level) {
+            $effortoptions[$level] = get_string("effort_{$level}", 'aiprovider_awsbr');
+        }
+        $mform->addElement('select', 'effort', get_string('effort', 'aiprovider_awsbr'), $effortoptions);
+        $mform->setType('effort', PARAM_ALPHA);
+        $mform->setDefault('effort', $actionconfig['effort'] ?? '');
+        $mform->addHelpButton('effort', 'effort', 'aiprovider_awsbr');
 
         // Hidden fields.
         if ($returnurl) {

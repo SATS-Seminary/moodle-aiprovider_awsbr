@@ -125,9 +125,9 @@ $string['action:generate_text:systeminstruction_help'] = 'This instruction is se
 $string['action:generate_text:maxtokens'] = 'Max tokens';
 $string['action:generate_text:maxtokens_help'] = 'Maximum number of tokens the model may generate in a single response. Higher values allow longer outputs but cost more.';
 $string['action:generate_text:temperature'] = 'Temperature';
-$string['action:generate_text:temperature_help'] = 'Controls randomness. 0.0 = deterministic; 1.0 = most varied. Recommended: 0.5–0.8 for most use cases.';
+$string['action:generate_text:temperature_help'] = 'Controls randomness. 0.0 = deterministic; 1.0 = most varied. Recommended: 0.5–0.8 for most use cases. Not sent to Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5, Fable), which do not accept it.';
 $string['action:generate_text:topp'] = 'Top-P';
-$string['action:generate_text:topp_help'] = 'Nucleus sampling threshold. 1.0 = consider all tokens. Lower values concentrate the distribution. Usually leave at 1.0 if adjusting temperature.';
+$string['action:generate_text:topp_help'] = 'Nucleus sampling threshold. 1.0 = consider all tokens. Lower values concentrate the distribution. Usually leave at 1.0 if adjusting temperature. Not sent to Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5, Fable), which do not accept it.';
 
 $string['action:summarise_text:model'] = 'Model';
 $string['action:summarise_text:model_help'] = 'Select the Bedrock inference profile to use for this action.';
@@ -137,9 +137,9 @@ $string['action:summarise_text:systeminstruction_help'] = 'This instruction is s
 $string['action:summarise_text:maxtokens'] = 'Max tokens';
 $string['action:summarise_text:maxtokens_help'] = 'Maximum number of tokens the model may generate in a single response.';
 $string['action:summarise_text:temperature'] = 'Temperature';
-$string['action:summarise_text:temperature_help'] = 'Controls randomness. 0.0 = deterministic; 1.0 = most varied.';
+$string['action:summarise_text:temperature_help'] = 'Controls randomness. 0.0 = deterministic; 1.0 = most varied. Not sent to Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5, Fable), which do not accept it.';
 $string['action:summarise_text:topp'] = 'Top-P';
-$string['action:summarise_text:topp_help'] = 'Nucleus sampling threshold.';
+$string['action:summarise_text:topp_help'] = 'Nucleus sampling threshold. Not sent to Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5, Fable), which do not accept it.';
 
 $string['action:explain_text:model'] = 'Model';
 $string['action:explain_text:model_help'] = 'Select the Bedrock inference profile to use for this action.';
@@ -149,9 +149,15 @@ $string['action:explain_text:systeminstruction_help'] = 'This instruction is sen
 $string['action:explain_text:maxtokens'] = 'Max tokens';
 $string['action:explain_text:maxtokens_help'] = 'Maximum number of tokens the model may generate in a single response.';
 $string['action:explain_text:temperature'] = 'Temperature';
-$string['action:explain_text:temperature_help'] = 'Controls randomness. 0.0 = deterministic; 1.0 = most varied.';
+$string['action:explain_text:temperature_help'] = 'Controls randomness. 0.0 = deterministic; 1.0 = most varied. Not sent to Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5, Fable), which do not accept it.';
 $string['action:explain_text:topp'] = 'Top-P';
-$string['action:explain_text:topp_help'] = 'Nucleus sampling threshold.';
+$string['action:explain_text:topp_help'] = 'Nucleus sampling threshold. Not sent to Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5, Fable), which do not accept it.';
+$string['effort'] = 'Effort';
+$string['effort_default'] = 'Model default';
+$string['effort_help'] = 'How much reasoning the model does before answering. Lower effort uses fewer (billed) output tokens and answers faster; higher effort helps with hard problems. Applies to Claude 4.6 and later models; ignored for other models. Model default leaves it to the model (medium on Claude Opus 5.5 and Haiku 5.5, high on most others).';
+$string['effort_high'] = 'High';
+$string['effort_low'] = 'Low';
+$string['effort_medium'] = 'Medium';
 
 // A3 - embed_text strings.
 $string['action:embed_text:model'] = 'Embedding model';

@@ -201,6 +201,61 @@ final class process_generate_text_test extends \advanced_testcase {
         $this->assertArrayNotHasKey('system', $args);
     }
 
+    /**
+     * Build request args for a given model and effort setting.
+     *
+     * @param string $model
+     * @param string $effort
+     * @return array
+     */
+    private function args_for(string $model, string $effort): array {
+        $config = $this->action_config();
+        $config[\core_ai\aiactions\generate_text::class]['settings']['model'] = $model;
+        $config[\core_ai\aiactions\generate_text::class]['settings']['effort'] = $effort;
+        $provider = $this->manager->update_provider_instance(provider: $this->provider, actionconfig: $config);
+
+        $processor = new process_generate_text($provider, $this->action);
+        $method    = new \ReflectionMethod($processor, 'build_request_args');
+        return $method->invoke($processor);
+    }
+
+    /**
+     * Newer Claude models reject sampling parameters, so none are sent.
+     */
+    public function test_build_request_args_omits_sampling_for_newer_claude(): void {
+        $args = $this->args_for('global.anthropic.claude-haiku-5-5', '');
+
+        $this->assertEquals(['maxTokens' => 2048], $args['inferenceConfig']);
+        $this->assertArrayNotHasKey('additionalModelRequestFields', $args);
+    }
+
+    /**
+     * A configured effort reaches models that support it via output_config.
+     */
+    public function test_build_request_args_sends_effort(): void {
+        $args = $this->args_for('global.anthropic.claude-sonnet-5-5', 'low');
+
+        $this->assertEquals(
+            ['output_config' => ['effort' => 'low']],
+            $args['additionalModelRequestFields'],
+        );
+    }
+
+    /**
+     * Effort is not sent to models that would reject it, and an unknown
+     * stored value is ignored.
+     */
+    public function test_build_request_args_skips_effort_when_unsupported(): void {
+        $this->assertArrayNotHasKey(
+            'additionalModelRequestFields',
+            $this->args_for('global.anthropic.claude-sonnet-4-5-20250929-v1:0', 'low'),
+        );
+        $this->assertArrayNotHasKey(
+            'additionalModelRequestFields',
+            $this->args_for('global.anthropic.claude-opus-5-5', 'turbo'),
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Tests for handle_api_success.
 

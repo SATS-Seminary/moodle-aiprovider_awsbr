@@ -24,6 +24,7 @@ namespace aiprovider_awsbr;
  *  - images      → messages[0].content[].image (base64 bytes)
  *  - system      → system[0].text
  *  - inferenceConfig ← maxtokens / temperature / topP
+ *  - additionalModelRequestFields.output_config.effort ← effort
  *
  * Multimodal: attaches PNG/JPEG image content blocks when the action carries
  * image data. Image validation / resizing is delegated to \core_ai\ai_image.
@@ -80,7 +81,25 @@ class process_generate_text extends abstract_processor {
             $args['system'] = [['text' => $systeminstruction]];
         }
 
+        // Effort (thinking depth / token spend) is a model-native field, passed
+        // through Converse's additionalModelRequestFields. Only sent to models
+        // that accept it; others would reject the unknown field.
+        $effort = $this->get_effort();
+        if ($effort !== '' && model_capabilities::supports_effort($modelid)) {
+            $args['additionalModelRequestFields'] = ['output_config' => ['effort' => $effort]];
+        }
+
         return $args;
+    }
+
+    /**
+     * Get the configured effort level for this action ('' = model default).
+     *
+     * @return string
+     */
+    protected function get_effort(): string {
+        $effort = (string) ($this->provider->actionconfig[$this->action::class]['settings']['effort'] ?? '');
+        return in_array($effort, model_capabilities::EFFORT_LEVELS, true) ? $effort : '';
     }
 
     /**
@@ -94,6 +113,9 @@ class process_generate_text extends abstract_processor {
      * pick whichever sampling parameter the admin explicitly set (preferring
      * temperature when both are at defaults). For non-Claude models, send both.
      *
+     * Claude models after the 4.6 generation reject sampling parameters
+     * outright, so neither is sent to them ({@see model_capabilities}).
+     *
      * @return array
      */
     protected function build_inference_config(): array {
@@ -101,9 +123,13 @@ class process_generate_text extends abstract_processor {
             'maxTokens' => $this->get_max_tokens(),
         ];
 
+        $modelid = (string) $this->get_model_id();
+        if (!model_capabilities::accepts_sampling_params($modelid)) {
+            return $config;
+        }
+
         $temperature = $this->get_temperature();
         $topp        = $this->get_top_p();
-        $modelid     = (string) $this->get_model_id();
         $isclaude    = stripos($modelid, 'anthropic.claude') !== false;
 
         if ($isclaude) {

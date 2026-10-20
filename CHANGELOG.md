@@ -2,6 +2,17 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.3.0 — 2026-10-20
+- Newer Claude models work: `temperature` and `topP` are no longer sent to
+  Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5,
+  Fable, Mythos), which reject them with a 400. Older Claude and non-Claude
+  models are unchanged.
+- New per-action **Effort** setting (generate, summarise, explain): low,
+  medium or high, sent as `output_config.effort` to Claude 4.6 and later.
+  Lower effort cuts billed thinking tokens. Defaults to the model's own
+  default, so existing instances behave as before.
+- New `model_capabilities` helper holds these per-model rules.
+
 ## 1.2.0 — 2026-10-13
 - Moodle 5.3 compatibility, while keeping Moodle 5.0 support (`requires` is unchanged).
 - Region settings no longer depend on core's `\core\aws\admin_settings_aws_region`
