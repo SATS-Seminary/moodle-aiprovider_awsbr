@@ -29,8 +29,8 @@ use Aws\Credentials\InstanceProfileProvider;
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \aiprovider_awsbr\bedrock_client_factory
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\bedrock_client_factory::class)]
 final class bedrock_client_factory_test extends \advanced_testcase {
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;

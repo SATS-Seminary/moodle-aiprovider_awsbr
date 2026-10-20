@@ -41,11 +41,11 @@ use aiprovider_awsbr\aiactions\embed_text;
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \aiprovider_awsbr\process_generate_text
- * @covers     \aiprovider_awsbr\process_embed_text
- * @covers     \aiprovider_awsbr\provider
- * @group      aiprovider_awsbr_integration
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\process_generate_text::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\process_embed_text::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\provider::class)]
+#[\PHPUnit\Framework\Attributes\Group('aiprovider_awsbr_integration')]
 final class full_pipeline_test extends \advanced_testcase {
     // Constants & shared state.
 

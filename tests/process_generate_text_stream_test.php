@@ -32,8 +32,8 @@ use Aws\Result;
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \aiprovider_awsbr\process_generate_text_stream
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\process_generate_text_stream::class)]
 final class process_generate_text_stream_test extends \advanced_testcase {
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;

@@ -20,10 +20,10 @@ namespace aiprovider_awsbr;
  * Tests for the model catalog allowlist-overlay logic.
  *
  * @package    aiprovider_awsbr
- * @covers     \aiprovider_awsbr\model_catalog
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\model_catalog::class)]
 final class model_catalog_test extends \advanced_testcase {
     /**
      * parse_allowlist turns "id|Label" lines into an id => label map.

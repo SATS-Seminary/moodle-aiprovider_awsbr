@@ -2,6 +2,11 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.4.0 — 2026-10-20
+- Requires Moodle 5.1 or later (5.0 is end of life). CI tests 5.1 and 5.3
+  (plus main) instead of 5.0.
+- PHPUnit tests use PHPUnit 11 attributes instead of docblock annotations.
+
 ## 1.3.0 — 2026-10-20
 - Newer Claude models work: `temperature` and `topP` are no longer sent to
   Claude models after the 4.6 generation (Opus 4.7+, Sonnet 5+, Haiku 5.5,

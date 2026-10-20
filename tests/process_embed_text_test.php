@@ -43,8 +43,8 @@ use aiprovider_awsbr\aiactions\embed_text;
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \aiprovider_awsbr\process_embed_text
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\process_embed_text::class)]
 final class process_embed_text_test extends \advanced_testcase {
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;
@@ -508,10 +508,10 @@ final class process_embed_text_test extends \advanced_testcase {
     /**
      * Each AWS error code maps to the expected HTTP status code.
      *
-     * @dataProvider aws_error_code_provider
      * @param string $awscode The AWS error code returned by the SDK.
      * @param int $expectedhttpcode The HTTP status code the mapping should produce.
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('aws_error_code_provider')]
     public function test_map_aws_exception(string $awscode, int $expectedhttpcode): void {
         $processor = new process_embed_text($this->provider, $this->action);
         $method    = new \ReflectionMethod($processor, 'map_aws_exception');

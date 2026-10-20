@@ -29,9 +29,9 @@ use Aws\Command;
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \aiprovider_awsbr\process_generate_text
- * @covers     \aiprovider_awsbr\abstract_processor
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\process_generate_text::class)]
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\abstract_processor::class)]
 final class process_generate_text_test extends \advanced_testcase {
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;
@@ -717,9 +717,8 @@ final class process_generate_text_test extends \advanced_testcase {
 
     /**
      * Test that all known AWS error codes map to the correct HTTP status codes.
-     *
-     * @dataProvider aws_error_code_provider
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('aws_error_code_provider')]
     public function test_map_aws_exception(string $awscode, int $expectedhttpcode): void {
         $processor = new process_generate_text($this->provider, $this->action);
         $method    = new \ReflectionMethod($processor, 'map_aws_exception');

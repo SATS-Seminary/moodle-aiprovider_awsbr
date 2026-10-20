@@ -22,8 +22,8 @@ namespace aiprovider_awsbr;
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \aiprovider_awsbr\model_capabilities
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(\aiprovider_awsbr\model_capabilities::class)]
 final class model_capabilities_test extends \basic_testcase {
     /**
      * Model IDs with the expected [accepts sampling, supports effort].
@@ -53,11 +53,11 @@ final class model_capabilities_test extends \basic_testcase {
     /**
      * Sampling and effort support are derived from the model ID.
      *
-     * @dataProvider model_provider
      * @param string $modelid
      * @param bool $sampling
      * @param bool $effort
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('model_provider')]
     public function test_capabilities(string $modelid, bool $sampling, bool $effort): void {
         $this->assertSame($sampling, model_capabilities::accepts_sampling_params($modelid));
         $this->assertSame($effort, model_capabilities::supports_effort($modelid));
