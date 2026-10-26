@@ -43,6 +43,9 @@ class speech_client_factory extends bedrock_client_factory {
     /** Default speech region — a generative-Polly-capable EU region. */
     public const DEFAULT_SPEECH_REGION = 'eu-central-1';
 
+    /** Per-request timeout (seconds) for the large-upload S3 client. */
+    public const UPLOAD_TIMEOUT = 900;
+
     /**
      * The configured speech region (or the generative-capable default).
      *
@@ -91,6 +94,34 @@ class speech_client_factory extends bedrock_client_factory {
         $client = new S3Client($this->speech_client_args($this->speech_region($region)));
         $this->configure_proxy($client);
         return $client;
+    }
+
+    /**
+     * An S3 client for large uploads ({@see speech::put_object_file()}): same
+     * credentials and proxy, but a 15 minute timeout per request instead of 120 s.
+     * Each part of a multipart upload is its own request, so this is a per-part
+     * limit; the transfer as a whole has no time limit.
+     *
+     * @param string|null $region override the configured speech region.
+     * @return S3Client
+     */
+    public function get_s3_upload_client(?string $region = null): S3Client {
+        $client = new S3Client($this->upload_client_args($this->speech_region($region)));
+        $this->configure_proxy($client);
+        return $client;
+    }
+
+    /**
+     * Constructor args for the large-upload S3 client: the common speech args
+     * with a longer per-request timeout.
+     *
+     * @param string $region
+     * @return array
+     */
+    protected function upload_client_args(string $region): array {
+        $args = $this->speech_client_args($region);
+        $args['http'] = ['connect_timeout' => 10, 'timeout' => self::UPLOAD_TIMEOUT];
+        return $args;
     }
 
     /**

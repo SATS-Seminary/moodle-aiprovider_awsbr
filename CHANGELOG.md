@@ -2,6 +2,17 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.5.0 — 2026-10-26
+- New `speech::put_object_file($key, $path_or_stored_file, $contenttype)` uploads
+  large files (hundreds of MB, e.g. lecture recordings) to the speech bucket with
+  the AWS SDK's `ObjectUploader`: a single put below 16 MB, otherwise a multipart
+  upload (16 MB parts, 3 in parallel) streamed from disk. A failed multipart
+  upload is aborted so no orphaned parts remain. Returns the usual
+  `['success' => ...]` array.
+- The upload uses its own S3 client with a 15 minute per-request timeout
+  (`speech_client_factory::get_s3_upload_client()`). `put_object()` and the
+  timeouts of every other call are unchanged.
+
 ## 1.4.0 — 2026-10-20
 - Requires Moodle 5.1 or later (5.0 is end of life). CI tests 5.1 and 5.3
   (plus main) instead of 5.0.

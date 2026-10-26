@@ -19,6 +19,9 @@ namespace aiprovider_awsbr;
 use Aws\Polly\PollyClient;
 use Aws\TranscribeService\TranscribeServiceClient;
 use Aws\S3\S3Client;
+use Aws\S3\ObjectUploader;
+use Aws\S3\Exception\S3Exception;
+use Aws\Exception\MultipartUploadException;
 
 /**
  * Reusable AWS speech service for this provider: a thin, normalised wrapper over
@@ -38,6 +41,15 @@ use Aws\S3\S3Client;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class speech {
+    /** Files at or above this size (bytes) are uploaded in parts by {@see put_object_file()}. */
+    public const MULTIPART_THRESHOLD = 16 * 1024 * 1024;
+
+    /** Size (bytes) of each part of a multipart upload. */
+    public const MULTIPART_PART_SIZE = 16 * 1024 * 1024;
+
+    /** Number of parts uploaded in parallel. */
+    public const MULTIPART_CONCURRENCY = 3;
+
     /** @var speech_client_factory */
     private speech_client_factory $factory;
 
@@ -58,6 +70,10 @@ class speech {
         private ?TranscribeServiceClient $transcribe = null,
         /** @var S3Client|null injected S3 client (tests). */
         private ?S3Client $s3 = null,
+        /** @var int multipart threshold in bytes for put_object_file() (override in tests only). */
+        private int $multipartthreshold = self::MULTIPART_THRESHOLD,
+        /** @var int multipart part size in bytes for put_object_file() (at least 5 MB; override in tests only). */
+        private int $multipartpartsize = self::MULTIPART_PART_SIZE,
     ) {
         $this->factory = new speech_client_factory($provider);
     }
@@ -234,6 +250,89 @@ class speech {
     }
 
     /**
+     * Upload a (possibly very large) file to the working S3 bucket.
+     *
+     * Uses the AWS SDK's ObjectUploader: a single PutObject below the multipart
+     * threshold (16 MB), a multipart upload above it (16 MB parts, 3 in parallel),
+     * streamed from disk so memory use stays flat. If a multipart upload fails it
+     * is aborted, so no orphaned parts are left (and billed) in the bucket.
+     *
+     * Unless an S3 client was injected, the upload uses a dedicated client with no
+     * 120 s total timeout (see {@see speech_client_factory::get_s3_upload_client()}).
+     * {@see put_object()} and every other call are unchanged.
+     *
+     * @param string               $key         the S3 object key.
+     * @param string|\stored_file $source      a local file path, or a Moodle stored_file.
+     * @param string|null          $contenttype the Content-Type to store (optional).
+     * @return array{success:bool, uri?:string, errorcode?:int, errormessage?:string}
+     */
+    public function put_object_file(string $key, $source, ?string $contenttype = null): array {
+        $handle = null;
+        $client = null;
+        $uploadstate = null;
+        try {
+            if ($source instanceof \stored_file) {
+                $handle = $source->get_content_file_handle();
+            } else {
+                if (!is_string($source) || !is_file($source) || !is_readable($source)) {
+                    throw new \InvalidArgumentException('Source file not found or not readable.');
+                }
+                $handle = fopen($source, 'rb');
+            }
+            if (!is_resource($handle)) {
+                throw new \RuntimeException('Could not open the source file for reading.');
+            }
+
+            $params = [];
+            if ($contenttype !== null && $contenttype !== '') {
+                $params['ContentType'] = $contenttype;
+            }
+            $client = $this->s3_upload();
+            $uploader = new ObjectUploader($client, $this->bucket(), $key, $handle, 'private', [
+                'mup_threshold' => $this->multipartthreshold,
+                'part_size'     => $this->multipartpartsize,
+                'concurrency'   => self::MULTIPART_CONCURRENCY,
+                'params'        => $params,
+            ]);
+            $uploader->upload();
+            return ['success' => true, 'uri' => 's3://' . $this->bucket() . '/' . $key];
+        } catch (MultipartUploadException $e) {
+            // The SDK leaves a failed multipart upload open; abort it so no parts linger.
+            $uploadstate = $e->getState();
+            $this->abort_multipart($client, $key, $uploadstate);
+            return self::failure($e);
+        } catch (\Throwable $e) {
+            return self::failure($e);
+        } finally {
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
+        }
+    }
+
+    /**
+     * Abort a failed multipart upload, ignoring any error from the abort itself.
+     *
+     * @param S3Client|null $client
+     * @param string $key
+     * @param \Aws\Multipart\UploadState|null $state
+     */
+    private function abort_multipart(?S3Client $client, string $key, $state): void {
+        try {
+            $id = $state ? $state->getId() : [];
+            if ($client && !empty($id['UploadId'])) {
+                $client->abortMultipartUpload([
+                    'Bucket'   => $this->bucket(),
+                    'Key'      => $key,
+                    'UploadId' => $id['UploadId'],
+                ]);
+            }
+        } catch (\Throwable $e) {
+            debugging('aiprovider_awsbr: could not abort multipart upload: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
      * Fetch an object's bytes from the working S3 bucket.
      *
      * @param string $key
@@ -357,6 +456,15 @@ class speech {
      */
     private function s3(): S3Client {
         return $this->s3 ??= $this->factory->get_s3_client();
+    }
+
+    /**
+     * Lazily build (or return the injected) S3 client for large uploads.
+     *
+     * @return S3Client
+     */
+    private function s3_upload(): S3Client {
+        return $this->s3 ??= $this->factory->get_s3_upload_client();
     }
 
     /**

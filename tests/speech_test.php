@@ -235,6 +235,151 @@ final class speech_test extends \advanced_testcase {
         fclose($stream);
     }
 
+    /**
+     * Write a temp file of $bytes zero bytes and return its path.
+     *
+     * @param int $bytes
+     * @return string
+     */
+    private function make_temp_file(int $bytes): string {
+        $path = make_request_directory() . '/upload.bin';
+        $fh = fopen($path, 'wb');
+        ftruncate($fh, $bytes);
+        fclose($fh);
+        return $path;
+    }
+
+    /**
+     * Record the names of the commands sent through a client.
+     *
+     * @param S3Client $client
+     * @param array $history filled by reference.
+     */
+    private function record(S3Client $client, array &$history): void {
+        $client->getHandlerList()->appendSign(\Aws\Middleware::tap(function ($cmd) use (&$history) {
+            $history[] = $cmd->getName();
+        }));
+    }
+
+    public function test_put_object_file_small_file_is_a_single_put(): void {
+        $mock = new MockHandler();
+        $mock->append(new Result([]));
+        $client = $this->mock_client(S3Client::class, $mock);
+        $history = [];
+        $this->record($client, $history);
+        $service = new speech($this->make_provider(), s3: $client);
+
+        $put = $service->put_object_file('lectures/a.mp4', $this->make_temp_file(1024 * 1024), 'video/mp4');
+
+        $this->assertTrue($put['success']);
+        $this->assertSame('s3://nida-speech/lectures/a.mp4', $put['uri']);
+        $this->assertSame(['PutObject'], $history);
+        $cmd = $mock->getLastCommand();
+        $this->assertSame('nida-speech', $cmd['Bucket']);
+        $this->assertSame('lectures/a.mp4', $cmd['Key']);
+        $this->assertSame('video/mp4', $cmd['ContentType']);
+    }
+
+    public function test_put_object_file_large_file_is_multipart(): void {
+        $mock = new MockHandler();
+        $mock->append(new Result(['UploadId' => 'UP1']));
+        $mock->append(new Result(['ETag' => '"e1"']));
+        $mock->append(new Result(['ETag' => '"e2"']));
+        $mock->append(new Result(['ETag' => '"e3"']));
+        $mock->append(new Result([]));
+        $client = $this->mock_client(S3Client::class, $mock);
+        $history = [];
+        $this->record($client, $history);
+        // 11 MB with 5 MB parts gives three parts; a threshold of 8 MB forces multipart.
+        $service = new speech(
+            $this->make_provider(),
+            s3: $client,
+            multipartthreshold: 8 * 1024 * 1024,
+            multipartpartsize: 5 * 1024 * 1024,
+        );
+
+        $put = $service->put_object_file('lectures/big.mp4', $this->make_temp_file(11 * 1024 * 1024), 'video/mp4');
+
+        $this->assertTrue($put['success']);
+        $this->assertSame('s3://nida-speech/lectures/big.mp4', $put['uri']);
+        $this->assertSame('CreateMultipartUpload', $history[0]);
+        $this->assertCount(3, array_keys($history, 'UploadPart'));
+        $this->assertSame('CompleteMultipartUpload', end($history));
+        $this->assertNotContains('AbortMultipartUpload', $history);
+        $this->assertSame(0, $mock->count(), 'every queued response was consumed');
+    }
+
+    public function test_put_object_file_aborts_multipart_on_failure(): void {
+        $mock = new MockHandler();
+        $mock->append(new Result(['UploadId' => 'UP2']));
+        $mock->append(new AwsException('boom', new Command('UploadPart'), ['code' => 'InternalError']));
+        $mock->append(new AwsException('boom', new Command('UploadPart'), ['code' => 'InternalError']));
+        $mock->append(new AwsException('boom', new Command('UploadPart'), ['code' => 'InternalError']));
+        $mock->append(new Result([])); // Mocked abortMultipartUpload response.
+        $client = $this->mock_client(S3Client::class, $mock);
+        $history = [];
+        $this->record($client, $history);
+        $service = new speech(
+            $this->make_provider(),
+            s3: $client,
+            multipartthreshold: 8 * 1024 * 1024,
+            multipartpartsize: 5 * 1024 * 1024,
+        );
+
+        $put = $service->put_object_file('lectures/big.mp4', $this->make_temp_file(11 * 1024 * 1024));
+
+        $this->assertFalse($put['success']);
+        $this->assertNotEmpty($put['errormessage']);
+        $this->assertSame('AbortMultipartUpload', end($history));
+        $this->assertNotContains('CompleteMultipartUpload', $history);
+        $cmd = $mock->getLastCommand();
+        $this->assertSame('UP2', $cmd['UploadId']);
+        $this->assertSame('lectures/big.mp4', $cmd['Key']);
+    }
+
+    public function test_put_object_file_reports_a_missing_file(): void {
+        $service = new speech($this->make_provider(), s3: $this->mock_client(S3Client::class, new MockHandler()));
+        $put = $service->put_object_file('x', '/no/such/file.mp4');
+        $this->assertFalse($put['success']);
+    }
+
+    public function test_put_object_file_accepts_a_stored_file(): void {
+        $file = get_file_storage()->create_file_from_string([
+            'contextid' => \context_system::instance()->id,
+            'component' => 'user', 'filearea' => 'draft', 'itemid' => 1,
+            'filepath' => '/', 'filename' => 'a.mp3',
+        ], 'AUDIO');
+        $mock = new MockHandler();
+        $mock->append(new Result([]));
+        $service = new speech($this->make_provider(), s3: $this->mock_client(S3Client::class, $mock));
+
+        $put = $service->put_object_file('a.mp3', $file, 'audio/mpeg');
+
+        $this->assertTrue($put['success']);
+        $this->assertSame('PutObject', $mock->getLastCommand()->getName());
+    }
+
+    public function test_upload_client_has_long_timeout_and_default_client_is_unchanged(): void {
+        $factory = new class ($this->make_provider()) extends speech_client_factory {
+            /**
+             * Expose the client args of both S3 clients.
+             *
+             * @return array{upload:array, normal:array}
+             */
+            public function args(): array {
+                return [
+                    'upload' => $this->upload_client_args('eu-central-1')['http'],
+                    'normal' => $this->speech_client_args('eu-central-1')['http'],
+                ];
+            }
+        };
+        $args = $factory->args();
+        $this->assertSame(speech_client_factory::UPLOAD_TIMEOUT, $args['upload']['timeout']);
+        $this->assertSame(10, $args['upload']['connect_timeout']);
+        $this->assertSame(120, $args['normal']['timeout']);
+        $this->assertSame('eu-central-1', $factory->get_s3_upload_client()->getRegion());
+    }
+
     public function test_delete_object(): void {
         $mock = new MockHandler();
         $mock->append(new Result([]));
