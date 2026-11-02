@@ -169,7 +169,7 @@ $string['action:embed_text:dimensions'] = 'Vector dimensions (Titan v2 only)';
 $string['action:embed_text:dimensions_help'] = 'Amazon Titan v2 supports configurable output dimensions: 256, 512, or 1024. Lower dimensions reduce storage and cosine-search cost at a small quality penalty. Leave at the default (1024) unless you have measured the trade-off. This setting has no effect on Cohere models.';
 $string['action:embed_text:dimensions_default'] = '— Model default (1024) —';
 
-// grade_response strings.
+// Strings for the grade_response action.
 $string['action:grade_response:model'] = 'Default model';
 $string['action:grade_response:model_default'] = '— First available model —';
 $string['action:grade_response:model_help'] = 'The Bedrock inference profile used when the caller does not choose one. A caller may only override it with a model that is listed in the available models.';

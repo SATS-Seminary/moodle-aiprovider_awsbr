@@ -82,7 +82,7 @@ class provider extends \core_ai\provider {
             return new form\action_embed_text_form(customdata: $customdata);
         }
 
-        // grade_response: light form (model, max tokens, effort); the caller supplies the prompts.
+        // The grade_response action: light form (model, max tokens, effort); the caller supplies the prompts.
         if ($actionname === 'grade_response') {
             return new form\action_grade_response_form(customdata: $customdata);
         }
@@ -114,7 +114,7 @@ class provider extends \core_ai\provider {
             return $mform->get_defaults();
         }
 
-        // grade_response defaults.
+        // Defaults for the grade_response action.
         if ($actionname === 'grade_response') {
             $mform = new form\action_grade_response_form(customdata: $customdata);
             return $mform->get_defaults();
