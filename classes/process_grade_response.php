@@ -19,18 +19,18 @@ namespace aiprovider_awsbr;
 /**
  * Processor for the grade_response action via the AWS Bedrock Converse API.
  *
- * Forces the model to answer by calling one tool whose input schema is the
- * caller's JSON Schema, and returns that tool input as the result:
+ * Asks the model for structured output (a JSON document following the caller's
+ * JSON Schema) and returns the decoded document as the result:
  *  - systemprompt  → system[0].text, followed by a cache point
  *  - cachedprompt  → first text block of the user message, followed by a cache
  *                    point (omitted when empty)
  *  - prompttext    → last text block of the user message
- *  - toolname / tooldescription / inputschema → toolConfig with a forced toolChoice
+ *  - outputschema  → additionalModelRequestFields.output_config.format
+ *                    (type json_schema), merged with output_config.effort
  *  - inferenceConfig ← maxTokens, and temperature 0 where the model accepts it
- *  - additionalModelRequestFields.output_config.effort ← effort
  *
- * No thinking / reasoning configuration is ever sent: a forced tool choice is
- * incompatible with extended thinking. Throttling, fallback-region retry and AWS
+ * No toolConfig and no thinking configuration is ever sent: newer models reject
+ * a forced tool choice. Reasoning blocks in the reply are ignored. Throttling, fallback-region retry and AWS
  * error mapping come from {@see abstract_processor}. Validating the result
  * against the schema is left to the caller.
  *
@@ -134,7 +134,6 @@ class process_grade_response extends abstract_processor {
     protected function build_request_args(): array {
         $modelid      = $this->get_model_id();
         $cachedprompt = (string) $this->action->get_configuration('cachedprompt');
-        $toolname     = (string) $this->action->get_configuration('toolname');
 
         $content = [];
         if ($cachedprompt !== '') {
@@ -157,58 +156,70 @@ class process_grade_response extends abstract_processor {
             'messages' => [
                 ['role' => 'user', 'content' => $content],
             ],
-            'toolConfig' => [
-                'tools' => [
-                    ['toolSpec' => [
-                        'name'        => $toolname,
-                        'description' => (string) $this->action->get_configuration('tooldescription'),
-                        'inputSchema' => ['json' => $this->action->get_configuration('inputschema')],
-                    ]],
-                ],
-                'toolChoice' => ['tool' => ['name' => $toolname]],
-            ],
             'inferenceConfig' => $inferenceconfig,
         ];
 
+        $outputconfig = [
+            'format' => [
+                'type'   => 'json_schema',
+                'schema' => $this->action->get_configuration('outputschema'),
+            ],
+        ];
         // Effort is a model-native field, only sent to models that accept it.
         $effort = $this->get_effort();
         if ($effort !== '' && model_capabilities::supports_effort($modelid)) {
-            $args['additionalModelRequestFields'] = ['output_config' => ['effort' => $effort]];
+            $outputconfig['effort'] = $effort;
         }
+        $args['additionalModelRequestFields'] = ['output_config' => $outputconfig];
 
         return $args;
     }
 
     #[\Override]
     protected function handle_api_success(\Aws\Result $result): array {
-        $modelid  = $this->get_model_id();
-        $data     = $result->toArray();
-        $toolname = (string) $this->action->get_configuration('toolname');
+        $modelid    = $this->get_model_id();
+        $data       = $result->toArray();
+        $stopreason = (string) ($data['stopReason'] ?? '');
 
+        // Only text blocks carry the answer; reasoningContent blocks are ignored.
+        $text = '';
         foreach ($data['output']['message']['content'] ?? [] as $block) {
-            if (isset($block['toolUse']) && ($block['toolUse']['name'] ?? '') === $toolname) {
-                // Normalise any stdClass the SDK left in the decoded document to arrays.
-                $input = json_decode(json_encode($block['toolUse']['input'] ?? []), true);
-                return [
-                    'success'          => true,
-                    'id'               => $data['ResponseMetadata']['RequestId'] ?? null,
-                    'result'           => is_array($input) ? $input : [],
-                    'model'            => $modelid,
-                    'prompttokens'     => (int) ($data['usage']['inputTokens'] ?? 0),
-                    'completiontokens' => (int) ($data['usage']['outputTokens'] ?? 0),
-                    'cachereadtokens'  => (int) ($data['usage']['cacheReadInputTokens'] ?? 0),
-                    'cachewritetokens' => (int) ($data['usage']['cacheWriteInputTokens'] ?? 0),
-                    'stopreason'       => (string) ($data['stopReason'] ?? ''),
-                ];
+            if (isset($block['text']) && is_string($block['text'])) {
+                $text .= $block['text'];
             }
         }
 
+        // Error messages never include the model's text (it may echo student content).
+        if ($stopreason === 'max_tokens') {
+            return [
+                'success'      => false,
+                'errorcode'    => 422,
+                'error'        => 'Truncated',
+                'errormessage' => 'The response was cut off before it was complete (stopReason: max_tokens).',
+            ];
+        }
+
+        $decoded = json_decode($text, true);
+        if (!is_array($decoded)) {
+            return [
+                'success'      => false,
+                'errorcode'    => 422,
+                'error'        => 'InvalidJson',
+                'errormessage' => 'The response was not a valid JSON document (stopReason: '
+                    . ($stopreason !== '' ? $stopreason : 'unknown') . ').',
+            ];
+        }
+
         return [
-            'success'      => false,
-            'errorcode'    => 422,
-            'error'        => 'NoToolUse',
-            'errormessage' => 'Bedrock did not call the "' . $toolname . '" tool (stopReason: '
-                . ($data['stopReason'] ?? 'unknown') . ').',
+            'success'          => true,
+            'id'               => $data['ResponseMetadata']['RequestId'] ?? null,
+            'result'           => $decoded,
+            'model'            => $modelid,
+            'prompttokens'     => (int) ($data['usage']['inputTokens'] ?? 0),
+            'completiontokens' => (int) ($data['usage']['outputTokens'] ?? 0),
+            'cachereadtokens'  => (int) ($data['usage']['cacheReadInputTokens'] ?? 0),
+            'cachewritetokens' => (int) ($data['usage']['cacheWriteInputTokens'] ?? 0),
+            'stopreason'       => $stopreason,
         ];
     }
 }

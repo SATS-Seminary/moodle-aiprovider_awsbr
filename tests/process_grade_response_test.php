@@ -98,9 +98,7 @@ final class process_grade_response_test extends \advanced_testcase {
             'systemprompt'    => 'You are a strict marker.',
             'cachedprompt'    => 'Question and rubric.',
             'prompttext'      => 'Student answer: secret-student-text',
-            'toolname'        => 'submit_assessment',
-            'tooldescription' => 'Submit the assessment.',
-            'inputschema'     => [
+            'outputschema'    => [
                 'type'       => 'object',
                 'properties' => ['score' => ['type' => 'number']],
                 'required'   => ['score'],
@@ -112,17 +110,14 @@ final class process_grade_response_test extends \advanced_testcase {
     }
 
     /**
-     * A Converse success payload in which the model called the forced tool.
+     * A Converse success payload in which the model answered with a JSON text block.
      *
      * @param array $content Content blocks to return.
      * @param string $stopreason
      * @return array
      */
-    private static function converse_data(array $content = [], string $stopreason = 'tool_use'): array {
-        $content = $content ?: [
-            ['text' => 'Thinking out loud.'],
-            ['toolUse' => ['toolUseId' => 'tu-1', 'name' => 'submit_assessment', 'input' => ['score' => 7.5]]],
-        ];
+    private static function converse_data(array $content = [], string $stopreason = 'end_turn'): array {
+        $content = $content ?: [['text' => '{"score": 7.5}']];
         return [
             'ResponseMetadata' => ['RequestId' => 'req-grade-1'],
             'output'           => ['message' => ['role' => 'assistant', 'content' => $content]],
@@ -236,7 +231,7 @@ final class process_grade_response_test extends \advanced_testcase {
     // Request shape.
 
     /**
-     * The Converse request has cache points, the forced tool and the configured limits.
+     * The Converse request has cache points, the output format and the configured limits.
      */
     public function test_build_request_args_shape(): void {
         $action = $this->make_action();
@@ -258,15 +253,13 @@ final class process_grade_response_test extends \advanced_testcase {
             $args['messages'][0]['content'],
         );
 
-        $tool = $args['toolConfig']['tools'][0]['toolSpec'];
-        $this->assertSame('submit_assessment', $tool['name']);
-        $this->assertSame('Submit the assessment.', $tool['description']);
-        $this->assertSame($action->get_configuration('inputschema'), $tool['inputSchema']['json']);
-        $this->assertCount(1, $args['toolConfig']['tools']);
-        $this->assertSame(['tool' => ['name' => 'submit_assessment']], $args['toolConfig']['toolChoice']);
+        $this->assertArrayNotHasKey('toolConfig', $args);
+        $this->assertSame(
+            ['output_config' => ['format' => ['type' => 'json_schema', 'schema' => $action->get_configuration('outputschema')]]],
+            $args['additionalModelRequestFields'],
+        );
 
         $this->assertSame(2048, $args['inferenceConfig']['maxTokens']);
-        $this->assertArrayNotHasKey('additionalModelRequestFields', $args);
         $this->assertStringNotContainsString('thinking', json_encode($args));
     }
 
@@ -299,17 +292,23 @@ final class process_grade_response_test extends \advanced_testcase {
     }
 
     /**
-     * Effort is sent only when configured and supported by the model.
+     * Effort is merged into output_config next to the format, only when configured and supported.
      */
     public function test_build_request_args_effort(): void {
         $action = $this->make_action();
+        $schema = $action->get_configuration('outputschema');
+        $format = ['type' => 'json_schema', 'schema' => $schema];
 
         $args = $this->args_for($action, self::HAIKU55, 'low');
-        $this->assertSame(['output_config' => ['effort' => 'low']], $args['additionalModelRequestFields']);
+        $this->assertSame(
+            ['output_config' => ['format' => $format, 'effort' => 'low']],
+            $args['additionalModelRequestFields'],
+        );
 
-        $this->assertArrayNotHasKey('additionalModelRequestFields', $this->args_for($action, self::HAIKU55, ''));
-        $this->assertArrayNotHasKey('additionalModelRequestFields', $this->args_for($action, self::HAIKU55, 'turbo'));
-        $this->assertArrayNotHasKey('additionalModelRequestFields', $this->args_for($action, self::SONNET45, 'low'));
+        foreach ([[self::HAIKU55, ''], [self::HAIKU55, 'turbo'], [self::SONNET45, 'low']] as [$model, $effort]) {
+            $fields = $this->args_for($action, $model, $effort)['additionalModelRequestFields'];
+            $this->assertSame(['output_config' => ['format' => $format]], $fields);
+        }
     }
 
     /**
@@ -333,7 +332,7 @@ final class process_grade_response_test extends \advanced_testcase {
     // Success and failure of process().
 
     /**
-     * The tool input comes back as the result with every token field.
+     * The parsed JSON comes back as the result with every token field.
      */
     public function test_process_success(): void {
         $this->setUser($this->getDataGenerator()->create_user());
@@ -356,7 +355,7 @@ final class process_grade_response_test extends \advanced_testcase {
         $this->assertSame(30, $data['completiontokens']);
         $this->assertSame(100, $data['cachereadtokens']);
         $this->assertSame(20, $data['cachewritetokens']);
-        $this->assertSame('tool_use', $data['stopreason']);
+        $this->assertSame('end_turn', $data['stopreason']);
         $this->assertSame('req-grade-1', $data['id']);
     }
 
@@ -376,11 +375,29 @@ final class process_grade_response_test extends \advanced_testcase {
     }
 
     /**
-     * No toolUse block (for example max_tokens) is a 422 NoToolUse error naming the stop reason.
+     * Reasoning blocks are ignored and every text block is concatenated.
      */
-    public function test_process_no_tool_use(): void {
+    public function test_process_reasoning_and_split_text(): void {
         $this->setUser($this->getDataGenerator()->create_user());
-        $data = self::converse_data([['text' => 'I refuse to use the tool.']], 'max_tokens');
+        $data = self::converse_data([
+            ['reasoningContent' => ['reasoningText' => ['text' => '{"score": 1}']]],
+            ['text' => '{"score": '],
+            ['text' => '9}'],
+        ]);
+        $processor = $this->make_processor($this->provider, $this->make_action(), new MockHandler([new Result($data)]));
+
+        $response = $processor->process();
+
+        $this->assertTrue($response->get_success());
+        $this->assertSame(['score' => 9], $response->get_result());
+    }
+
+    /**
+     * A reply cut off at max_tokens is a 422 Truncated error that does not leak the model text.
+     */
+    public function test_process_truncated(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+        $data = self::converse_data([['text' => '{"score": secret-model-text']], 'max_tokens');
         $processor = $this->make_processor($this->provider, $this->make_action(), new MockHandler([new Result($data)]));
 
         $response = $processor->process();
@@ -388,25 +405,28 @@ final class process_grade_response_test extends \advanced_testcase {
         $this->assertFalse($response->get_success());
         $this->assertSame(422, $response->get_errorcode());
         $this->assertStringContainsString('max_tokens', $response->get_errormessage());
+        $this->assertStringNotContainsString('secret-model-text', $response->get_errormessage());
         if (method_exists($response, 'get_error')) {
-            $this->assertSame('NoToolUse', $response->get_error());
+            $this->assertSame('Truncated', $response->get_error());
         }
     }
 
     /**
-     * A toolUse block for a different tool does not count.
+     * Text that is not a JSON object/array is a 422 InvalidJson error that does not leak the model text.
      */
-    public function test_process_tool_use_with_other_name(): void {
+    public function test_process_invalid_json(): void {
         $this->setUser($this->getDataGenerator()->create_user());
-        $data = self::converse_data([
-            ['toolUse' => ['toolUseId' => 'tu-9', 'name' => 'other_tool', 'input' => ['score' => 1]]],
-        ]);
+        $data = self::converse_data([['text' => 'I think secret-model-text.']]);
         $processor = $this->make_processor($this->provider, $this->make_action(), new MockHandler([new Result($data)]));
 
         $response = $processor->process();
 
         $this->assertFalse($response->get_success());
         $this->assertSame(422, $response->get_errorcode());
+        $this->assertStringNotContainsString('secret-model-text', $response->get_errormessage());
+        if (method_exists($response, 'get_error')) {
+            $this->assertSame('InvalidJson', $response->get_error());
+        }
     }
 
     // Model allow-list.
@@ -587,7 +607,7 @@ final class process_grade_response_test extends \advanced_testcase {
         $this->assertEquals(30, $row->completiontokens);
         $this->assertEquals(100, $row->cachereadtokens);
         $this->assertEquals(20, $row->cachewritetokens);
-        $this->assertSame('tool_use', $row->stopreason);
+        $this->assertSame('end_turn', $row->stopreason);
         $this->assertSame('req-grade-1', $row->responseid);
         $this->assertSame(
             hash('sha256', "You are a strict marker.|Question and rubric.|Student answer: secret-student-text"),
@@ -624,47 +644,12 @@ final class process_grade_response_test extends \advanced_testcase {
     // Validation and wiring.
 
     /**
-     * Invalid tool names are rejected.
-     *
-     * @param string $toolname
-     */
-    #[\PHPUnit\Framework\Attributes\DataProvider('invalid_toolname_provider')]
-    public function test_invalid_toolname_throws(string $toolname): void {
-        $this->expectException(\coding_exception::class);
-        $this->make_action(['toolname' => $toolname]);
-    }
-
-    /**
-     * Invalid tool names.
-     *
-     * @return array
-     */
-    public static function invalid_toolname_provider(): array {
-        return [
-            'empty'      => [''],
-            'space'      => ['submit assessment'],
-            'dot'        => ['submit.assessment'],
-            'non-ascii'  => ['évaluation'],
-            'too long'   => [str_repeat('a', 65)],
-        ];
-    }
-
-    /**
-     * Valid tool names are accepted, including the 64 character limit.
-     */
-    public function test_valid_toolnames(): void {
-        foreach (['a', 'submit_assessment', 'Tool-1', str_repeat('z', 64)] as $name) {
-            $this->assertSame($name, $this->make_action(['toolname' => $name])->get_configuration('toolname'));
-        }
-    }
-
-    /**
-     * An input schema that is not of type object is rejected.
+     * An output schema that is not of type object is rejected.
      */
     public function test_non_object_schema_throws(): void {
         foreach ([[], ['type' => 'array', 'items' => ['type' => 'string']]] as $schema) {
             try {
-                $this->make_action(['inputschema' => $schema]);
+                $this->make_action(['outputschema' => $schema]);
                 $this->fail('Expected coding_exception for schema ' . json_encode($schema));
             } catch (\coding_exception $e) {
                 $this->assertStringContainsString('type object', $e->getMessage());
@@ -698,15 +683,13 @@ final class process_grade_response_test extends \advanced_testcase {
                 'systemprompt' => 'You are a strict marker.',
                 'cachedprompt' => 'Question and rubric.',
                 'prompttext' => 'Student answer: secret-student-text',
-                'toolname' => 'submit_assessment',
-                'tooldescription' => 'Submit the assessment.',
                 'modelid' => self::HAIKU55,
                 'maxtokens' => 99,
             ] as $name => $value
         ) {
             $this->assertSame($value, $action->get_configuration($name), $name);
         }
-        $this->assertSame('object', $action->get_configuration('inputschema')['type']);
+        $this->assertSame('object', $action->get_configuration('outputschema')['type']);
         $this->assertSame(response_grade_response::class, grade_response::get_response_classname());
     }
 

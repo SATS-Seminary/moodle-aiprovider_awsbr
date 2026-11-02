@@ -77,7 +77,7 @@ $string['action_explain_text'] = 'Explain text';
 $string['action_embed_text'] = 'Embed text (for retrieval / similarity search)';
 $string['action_embed_text_desc'] = 'Convert text into a dense vector (1024-dim for Titan v2) used by the knowledge-base retrieval pipeline. Embedding is non-generative and cheap. Bind this action to the eu-west-1 provider instance because Amazon Titan Text Embeddings v2 is not available in af-south-1.';
 $string['action_grade_response'] = 'Grade response (structured output)';
-$string['action_grade_response_desc'] = 'Ask a model to answer with one forced tool call whose input follows a JSON schema supplied by the caller, for example to assess a student response against a rubric. The caller supplies the prompts and may override the model with one of the available models.';
+$string['action_grade_response_desc'] = 'Ask a model to answer with a JSON document that follows a JSON schema supplied by the caller (native structured output), for example to assess a student response against a rubric. The caller supplies the prompts and may override the model with one of the available models.';
 
 // Defaults.
 $string['systeminstruction_generate_text'] = 'You are a helpful assistant. Answer the user\'s question concisely and accurately.';

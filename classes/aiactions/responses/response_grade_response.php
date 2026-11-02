@@ -25,7 +25,7 @@ use core_ai\aiactions\responses\response_base;
  * class for this custom action. Extends the core response_base.
  *
  * Fields returned:
- *  - result           : array  (the input of the forced tool call, decoded)
+ *  - result           : array  (the structured-output JSON document, decoded)
  *  - model            : string (the Bedrock model ID used)
  *  - prompttokens     : int    (input tokens)
  *  - completiontokens : int    (output tokens)
@@ -39,7 +39,7 @@ use core_ai\aiactions\responses\response_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class response_grade_response extends response_base {
-    /** @var array The decoded tool input. */
+    /** @var array The decoded structured output. */
     private array $result = [];
 
     /** @var int Input tokens. */
@@ -147,7 +147,7 @@ class response_grade_response extends response_base {
     }
 
     /**
-     * Return the decoded tool input.
+     * Return the decoded structured output.
      *
      * @return array
      */

@@ -20,14 +20,20 @@ use core_ai\aiactions\base;
 use core_ai\aiactions\responses\response_base;
 
 /**
- * Action: structured-output call, answered by a forced Bedrock tool call.
+ * Action: structured-output call, answered with a JSON document.
  *
  * A general purpose action (nothing here is specific to one caller). The caller
  * supplies a system prompt, an optional cacheable prefix, a variable suffix, a
- * JSON schema and optionally a model. Bedrock is forced to answer by calling a
- * single tool whose input matches the schema; that input is returned as the
- * `result` of {@see \aiprovider_awsbr\aiactions\responses\response_grade_response}.
+ * JSON schema and optionally a model. Bedrock is asked, through the model's
+ * native structured output (output_config.format of type json_schema), to
+ * answer with a single JSON document that follows the schema; the decoded
+ * document is returned as the `result` of
+ * {@see \aiprovider_awsbr\aiactions\responses\response_grade_response}.
  * Validating the result against the schema is the caller's job.
+ *
+ * Schema limits of the native structured output: `minItems` and `maxItems`
+ * accept only 0 or 1. The action does not rewrite the schema, so the caller
+ * must leave other values out and enforce item counts itself.
  *
  * Like embed_text this lives in aiprovider_awsbr rather than \core_ai\aiactions
  * because core does not ship it, and callers reach it through
@@ -44,9 +50,6 @@ use core_ai\aiactions\responses\response_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class grade_response extends base {
-    /** Pattern a Bedrock tool name must match. */
-    private const TOOLNAME_PATTERN = '/^[a-zA-Z0-9_-]{1,64}$/';
-
     /**
      * Create a new grade_response action.
      *
@@ -55,12 +58,11 @@ class grade_response extends base {
      * @param string $systemprompt    The system prompt (required, non-empty).
      * @param string $cachedprompt    Stable prefix of the user message that is cached; '' for none.
      * @param string $prompttext      The variable part of the user message (required).
-     * @param string $toolname        Name of the tool Bedrock is forced to call ([a-zA-Z0-9_-], 1-64 characters).
-     * @param string $tooldescription Description of the tool.
-     * @param array  $inputschema     JSON Schema (object type) the tool input must follow.
+     * @param array  $outputschema    JSON Schema (object type) the answer must follow. minItems and maxItems
+     *                                only accept 0 or 1; the caller enforces counts.
      * @param string $modelid         Model override; '' uses the action-configured default model.
      * @param int    $maxtokens       Maximum tokens to generate; 0 uses the action-configured default.
-     * @throws \coding_exception If the system prompt, prompt text or tool name is invalid.
+     * @throws \coding_exception If the system prompt, prompt text or output schema is invalid.
      */
     public function __construct(
         int $contextid,
@@ -72,12 +74,8 @@ class grade_response extends base {
         protected string $cachedprompt,
         /** @var string The variable part of the user message. */
         protected string $prompttext,
-        /** @var string The name of the forced tool. */
-        protected string $toolname,
-        /** @var string The description of the forced tool. */
-        protected string $tooldescription,
-        /** @var array The JSON Schema for the tool input. */
-        protected array $inputschema,
+        /** @var array The JSON Schema for the structured output. */
+        protected array $outputschema,
         /** @var string Model override ('' = configured default). */
         protected string $modelid = '',
         /** @var int Max tokens (0 = configured default). */
@@ -89,11 +87,8 @@ class grade_response extends base {
         if (trim($prompttext) === '') {
             throw new \coding_exception('grade_response requires non-empty prompt text.');
         }
-        if (!preg_match(self::TOOLNAME_PATTERN, $toolname)) {
-            throw new \coding_exception('grade_response tool name must match [a-zA-Z0-9_-]{1,64}.');
-        }
-        if (($inputschema['type'] ?? null) !== 'object') {
-            throw new \coding_exception('grade_response input schema must be a JSON Schema of type object.');
+        if (($outputschema['type'] ?? null) !== 'object') {
+            throw new \coding_exception('grade_response output schema must be a JSON Schema of type object.');
         }
         parent::__construct($contextid);
     }

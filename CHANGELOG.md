@@ -8,10 +8,15 @@ All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
   newer than 5.0.
 - New custom action `grade_response`: a general structured-output call. The
   caller supplies a system prompt, an optional cacheable prefix, a variable
-  suffix, a JSON schema and an optional model. Bedrock is forced, via Converse
-  tool use, to answer with one tool call whose input matches the schema, which
-  is returned as `result` together with the token counts (including prompt
-  cache reads and writes). A model override must be listed in the provider's
+  suffix, a JSON schema and an optional model. The answer uses the model's
+  native structured output (`output_config.format` of type `json_schema`), not
+  forced tool use: newer models reject a forced `toolChoice` and ignore an
+  automatic one. The decoded JSON document is returned as `result` together
+  with the token counts (including prompt cache reads and writes). A reply cut
+  off at the token limit fails with `Truncated`; a reply that is not a JSON
+  document fails with `InvalidJson`. Schema limit: `minItems` and `maxItems`
+  accept only 0 or 1, and the action does not rewrite the schema, so callers
+  must enforce item counts themselves. A model override must be listed in the provider's
   available models (or be the action's configured model), otherwise the call
   fails with `ModelNotAllowed` and nothing is sent to AWS. Per-action settings:
   model, max tokens (default 2048) and effort. The audit table
