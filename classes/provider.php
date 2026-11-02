@@ -22,7 +22,7 @@ use core_ai\form\action_settings_form;
  * AWS Bedrock AI provider.
  *
  * Plugs into Moodle's \core_ai\manager to provide generate_text, summarise_text,
- * explain_text, and embed_text actions via AWS Bedrock Converse API.
+ * explain_text, embed_text and grade_response actions via AWS Bedrock.
  *
  * Stream A1 + A2 + A4 implementation.
  *
@@ -42,6 +42,7 @@ class provider extends \core_ai\provider {
             \core_ai\aiactions\summarise_text::class,
             \core_ai\aiactions\explain_text::class,
             \aiprovider_awsbr\aiactions\embed_text::class,
+            \aiprovider_awsbr\aiactions\grade_response::class,
         ];
     }
 
@@ -81,6 +82,11 @@ class provider extends \core_ai\provider {
             return new form\action_embed_text_form(customdata: $customdata);
         }
 
+        // grade_response: light form (model, max tokens, effort); the caller supplies the prompts.
+        if ($actionname === 'grade_response') {
+            return new form\action_grade_response_form(customdata: $customdata);
+        }
+
         return false;
     }
 
@@ -105,6 +111,12 @@ class provider extends \core_ai\provider {
         // A3: embed_text defaults.
         if ($actionname === 'embed_text') {
             $mform = new form\action_embed_text_form(customdata: $customdata);
+            return $mform->get_defaults();
+        }
+
+        // grade_response defaults.
+        if ($actionname === 'grade_response') {
+            $mform = new form\action_grade_response_form(customdata: $customdata);
             return $mform->get_defaults();
         }
 

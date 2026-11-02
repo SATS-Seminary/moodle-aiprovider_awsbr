@@ -76,6 +76,8 @@ $string['action_summarise_text'] = 'Summarise text';
 $string['action_explain_text'] = 'Explain text';
 $string['action_embed_text'] = 'Embed text (for retrieval / similarity search)';
 $string['action_embed_text_desc'] = 'Convert text into a dense vector (1024-dim for Titan v2) used by the knowledge-base retrieval pipeline. Embedding is non-generative and cheap. Bind this action to the eu-west-1 provider instance because Amazon Titan Text Embeddings v2 is not available in af-south-1.';
+$string['action_grade_response'] = 'Grade response (structured output)';
+$string['action_grade_response_desc'] = 'Ask a model to answer with one forced tool call whose input follows a JSON schema supplied by the caller, for example to assess a student response against a rubric. The caller supplies the prompts and may override the model with one of the available models.';
 
 // Defaults.
 $string['systeminstruction_generate_text'] = 'You are a helpful assistant. Answer the user\'s question concisely and accurately.';
@@ -166,6 +168,13 @@ $string['action:embed_text:model_none'] = '— No models configured —';
 $string['action:embed_text:dimensions'] = 'Vector dimensions (Titan v2 only)';
 $string['action:embed_text:dimensions_help'] = 'Amazon Titan v2 supports configurable output dimensions: 256, 512, or 1024. Lower dimensions reduce storage and cosine-search cost at a small quality penalty. Leave at the default (1024) unless you have measured the trade-off. This setting has no effect on Cohere models.';
 $string['action:embed_text:dimensions_default'] = '— Model default (1024) —';
+
+// grade_response strings.
+$string['action:grade_response:model'] = 'Default model';
+$string['action:grade_response:model_default'] = '— First available model —';
+$string['action:grade_response:model_help'] = 'The Bedrock inference profile used when the caller does not choose one. A caller may only override it with a model that is listed in the available models.';
+$string['action:grade_response:maxtokens'] = 'Max tokens';
+$string['action:grade_response:maxtokens_help'] = 'Maximum number of tokens the model may generate, used when the caller does not set a limit. The structured answer is cut off, and the call fails, if it needs more.';
 
 // Error strings (used by process_embed_text).
 $string['error:embed_text:empty_vector'] = 'Bedrock returned an empty or malformed embedding vector.';

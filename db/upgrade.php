@@ -51,5 +51,45 @@ function xmldb_aiprovider_awsbr_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026052503, 'aiprovider', 'awsbr');
     }
 
+    if ($oldversion < 2026110200) {
+        // Audit table for the grade_response action. Token counts and a hash of the
+        // prompt only; the prompt text (which may contain a student's answer) is not stored.
+        $table = new xmldb_table('aiprovider_awsbr_grade_resp');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('model', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('prompttokens', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('completiontokens', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('cachereadtokens', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('cachewritetokens', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('stopreason', XMLDB_TYPE_CHAR, '32', null, null, null, null);
+        $table->add_field('responseid', XMLDB_TYPE_CHAR, '255', null, null, null, null);
+        $table->add_field('prompthash', XMLDB_TYPE_CHAR, '64', null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Existing provider instances keep their own action configuration, so a new
+        // action is not enabled on them unless it is added here (new instances get
+        // it from provider::initialise_action_settings()). The defaults are literal
+        // rather than read from the settings form, whose model list queries Bedrock.
+        $action = \aiprovider_awsbr\aiactions\grade_response::class;
+        $providers = $DB->get_records('ai_providers', ['provider' => \aiprovider_awsbr\provider::class]);
+        foreach ($providers as $record) {
+            $actionconfig = json_decode((string) $record->actionconfig, true);
+            $actionconfig = is_array($actionconfig) ? $actionconfig : [];
+            if (!array_key_exists($action, $actionconfig)) {
+                $actionconfig[$action] = [
+                    'enabled'  => true,
+                    'settings' => ['model' => '', 'maxtokens' => 2048, 'effort' => ''],
+                ];
+                $DB->set_field('ai_providers', 'actionconfig', json_encode($actionconfig), ['id' => $record->id]);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026110200, 'aiprovider', 'awsbr');
+    }
+
     return true;
 }

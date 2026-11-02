@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="ai/provider/awsbr/db" VERSION="2026053100" COMMENT="AWS Bedrock provider per-action audit tables."
+<XMLDB PATH="ai/provider/awsbr/db" VERSION="2026110200" COMMENT="AWS Bedrock provider per-action audit tables."
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../../lib/xmldb/xmldb.xsd"
 >
   <TABLES>
@@ -12,6 +12,23 @@
         <FIELD NAME="model" TYPE="char" LENGTH="128" NOTNULL="false" SEQUENCE="false" COMMENT="Embedding model ID used."/>
         <FIELD NAME="responseid" TYPE="char" LENGTH="128" NOTNULL="false" SEQUENCE="false" COMMENT="AWS request ID for the call."/>
         <FIELD NAME="fingerprint" TYPE="char" LENGTH="128" NOTNULL="false" SEQUENCE="false" COMMENT="Model fingerprint / version marker."/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    <TABLE NAME="aiprovider_awsbr_grade_resp" COMMENT="Per-call audit for the custom grade_response action. Stores token counts and a hash of the prompt, never the prompt text. Each row supplies a unique actionid so ai_action_register's UNIQUE(actionname, actionid) holds.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="model" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Model ID used."/>
+        <FIELD NAME="prompttokens" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Input tokens."/>
+        <FIELD NAME="completiontokens" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Output tokens."/>
+        <FIELD NAME="cachereadtokens" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Input tokens read from the prompt cache."/>
+        <FIELD NAME="cachewritetokens" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Input tokens written to the prompt cache."/>
+        <FIELD NAME="stopreason" TYPE="char" LENGTH="32" NOTNULL="false" SEQUENCE="false" COMMENT="Converse stopReason."/>
+        <FIELD NAME="responseid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="AWS request ID for the call."/>
+        <FIELD NAME="prompthash" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="SHA-256 of systemprompt|cachedprompt|prompttext."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

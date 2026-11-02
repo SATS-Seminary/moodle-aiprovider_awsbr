@@ -2,6 +2,23 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.6.0 — 2026-11-02
+- Moodle 5.0 is supported again (requires 5.0 or later; 5.3 also supported). CI
+  tests 5.0, 5.1 and 5.3 (plus main). Nothing added since 1.3.0 needed an API
+  newer than 5.0.
+- New custom action `grade_response`: a general structured-output call. The
+  caller supplies a system prompt, an optional cacheable prefix, a variable
+  suffix, a JSON schema and an optional model. Bedrock is forced, via Converse
+  tool use, to answer with one tool call whose input matches the schema, which
+  is returned as `result` together with the token counts (including prompt
+  cache reads and writes). A model override must be listed in the provider's
+  available models (or be the action's configured model), otherwise the call
+  fails with `ModelNotAllowed` and nothing is sent to AWS. Per-action settings:
+  model, max tokens (default 2048) and effort. The audit table
+  `aiprovider_awsbr_grade_resp` stores token counts and a SHA-256 hash of the
+  prompt, never the prompt text.
+- The upgrade enables `grade_response` on existing provider instances.
+
 ## 1.5.0 — 2026-10-26
 - New `speech::put_object_file($key, $path_or_stored_file, $contenttype)` uploads
   large files (hundreds of MB, e.g. lecture recordings) to the speech bucket with
