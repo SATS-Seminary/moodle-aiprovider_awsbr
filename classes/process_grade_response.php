@@ -24,6 +24,9 @@ namespace aiprovider_awsbr;
  *  - systemprompt  → system[0].text, followed by a cache point
  *  - cachedprompt  → first text block of the user message, followed by a cache
  *                    point (omitted when empty)
+ *  Cache points are left out when Moodle's AWS SDK predates them (Moodle 5.0
+ *  ships 3.342), because that SDK sends each one as an empty block, which
+ *  Bedrock rejects. The call then works, without prompt caching.
  *  - prompttext    → last text block of the user message
  *  - outputschema  → additionalModelRequestFields.output_config.format
  *                    (type json_schema), merged with output_config.effort
@@ -41,6 +44,38 @@ namespace aiprovider_awsbr;
 class process_grade_response extends abstract_processor {
     /** Default for the max tokens setting when neither the call nor the action sets one. */
     private const DEFAULT_MAX_TOKENS = 2048;
+
+    /** @var bool|null Whether the AWS SDK can send cache points; null until checked. */
+    private static ?bool $cachepoints = null;
+
+    /**
+     * Whether Moodle's AWS SDK knows the Converse cache point blocks.
+     *
+     * Read from the SDK's own model of the Bedrock Runtime API, once per request.
+     *
+     * @return bool
+     */
+    public static function sdk_has_cache_points(): bool {
+        if (self::$cachepoints === null) {
+            try {
+                $api = (\Aws\Api\ApiProvider::defaultProvider())('api', 'bedrock-runtime', '2023-09-30');
+                self::$cachepoints = isset($api['shapes']['SystemContentBlock']['members']['cachePoint'])
+                    && isset($api['shapes']['ContentBlock']['members']['cachePoint']);
+            } catch (\Throwable $e) {
+                self::$cachepoints = false;
+            }
+        }
+        return self::$cachepoints;
+    }
+
+    /**
+     * Pretend the AWS SDK has, or lacks, cache points; null checks the SDK again.
+     *
+     * @param bool|null $has
+     */
+    public static function set_cache_points_for_testing(?bool $has): void {
+        self::$cachepoints = $has;
+    }
 
     /**
      * Reject a model override that the provider does not offer, then query Bedrock.
@@ -134,11 +169,12 @@ class process_grade_response extends abstract_processor {
     protected function build_request_args(): array {
         $modelid      = $this->get_model_id();
         $cachedprompt = (string) $this->action->get_configuration('cachedprompt');
+        $cachepoint = self::sdk_has_cache_points() ? [['cachePoint' => ['type' => 'default']]] : [];
 
         $content = [];
         if ($cachedprompt !== '') {
             $content[] = ['text' => $cachedprompt];
-            $content[] = ['cachePoint' => ['type' => 'default']];
+            array_push($content, ...$cachepoint);
         }
         $content[] = ['text' => (string) $this->action->get_configuration('prompttext')];
 
@@ -151,7 +187,7 @@ class process_grade_response extends abstract_processor {
             'modelId'  => $modelid,
             'system'   => [
                 ['text' => (string) $this->action->get_configuration('systemprompt')],
-                ['cachePoint' => ['type' => 'default']],
+                ...$cachepoint,
             ],
             'messages' => [
                 ['role' => 'user', 'content' => $content],

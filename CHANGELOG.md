@@ -2,6 +2,12 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.6.1 — 2026-11-04
+- `grade_response` works with the older AWS SDK that Moodle 5.0 ships (3.342).
+  That SDK sent each prompt cache point as an empty block, so Bedrock refused
+  every call with "The system field can't be null". Cache points are now sent
+  only when the SDK knows them; without them the call works, uncached.
+
 ## 1.6.0 — 2026-11-02
 - Moodle 5.0 is supported again (requires 5.0 or later; 5.3 also supported). CI
   tests 5.0, 5.1 and 5.3 (plus main). Nothing added since 1.3.0 needed an API

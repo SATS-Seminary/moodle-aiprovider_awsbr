@@ -226,6 +226,13 @@ final class process_grade_response_test extends \advanced_testcase {
             provider:     $this->provider,
             actionconfig: $this->action_config(),
         );
+        // The request shape must not depend on the AWS SDK of the Moodle under test.
+        process_grade_response::set_cache_points_for_testing(true);
+    }
+
+    protected function tearDown(): void {
+        process_grade_response::set_cache_points_for_testing(null);
+        parent::tearDown();
     }
 
     // Request shape.
@@ -275,6 +282,32 @@ final class process_grade_response_test extends \advanced_testcase {
         );
         // The system prompt still carries its cache point.
         $this->assertSame(['cachePoint' => ['type' => 'default']], $args['system'][1]);
+    }
+
+    /**
+     * An AWS SDK without cache points gets none: it would send each as an empty block, which Bedrock rejects.
+     */
+    public function test_build_request_args_without_sdk_cache_points(): void {
+        process_grade_response::set_cache_points_for_testing(false);
+        $args = $this->args_for($this->make_action());
+
+        $this->assertSame([['text' => 'You are a strict marker.']], $args['system']);
+        $this->assertSame(
+            [['text' => 'Question and rubric.'], ['text' => 'Student answer: secret-student-text']],
+            $args['messages'][0]['content'],
+        );
+    }
+
+    /**
+     * The check reads the SDK of the Moodle under test.
+     */
+    public function test_sdk_cache_points_are_read_from_the_sdk(): void {
+        process_grade_response::set_cache_points_for_testing(null);
+        $api = (\Aws\Api\ApiProvider::defaultProvider())('api', 'bedrock-runtime', '2023-09-30');
+        $this->assertSame(
+            isset($api['shapes']['SystemContentBlock']['members']['cachePoint']),
+            process_grade_response::sdk_has_cache_points(),
+        );
     }
 
     /**
