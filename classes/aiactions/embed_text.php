@@ -23,17 +23,17 @@ use core_ai\aiactions\responses\response_base;
  * Action: embed text into a vector for retrieval / similarity search.
  *
  * This class lives inside aiprovider_awsbr\aiactions rather than \core_ai\aiactions
- * because Moodle core does not yet ship an embeddings action. local_ezra calls
- * embeddings through \core_ai\manager::process_action() using this action class,
- * keeping all AWS calls inside the provider plugin.
+ * because Moodle core does not yet ship an embeddings action. A calling plugin
+ * requests embeddings through \core_ai\manager::process_action() using this action
+ * class, keeping all AWS calls inside the provider plugin.
  *
  * The response class is \aiprovider_awsbr\aiactions\responses\response_embed_text
  * which returns vector, dim, model and token-count fields.
  *
- * Store behaviour: we rely on core's ai_action_register table for the shared audit
- * record (userid, contextid, model, tokens, timings). There is no separate per-action
- * table for embeddings because vector data is persisted by local_ezra in its own
- * kb_chunk schema — not here.
+ * Store behaviour: core's ai_action_register table holds the shared audit record
+ * (userid, contextid, model, tokens, timings). The per-call row in
+ * aiprovider_awsbr_embed_text holds the embedded text and request metadata. The
+ * vector itself is not stored here; the calling plugin persists it.
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
@@ -117,7 +117,7 @@ class embed_text extends base {
      * satisfying its UNIQUE(actionname, actionid) index — without that, the second
      * embedding call would collide on `embed_text-0`.
      *
-     * The vector itself is persisted by local_ezra into local_ezra_kb_chunk.
+     * The vector itself is not stored here; the calling plugin persists it.
      * We capture metadata (prompt, dim, tokens, model, request id) here for audit.
      *
      * @param response_base $response The response produced by the processor.

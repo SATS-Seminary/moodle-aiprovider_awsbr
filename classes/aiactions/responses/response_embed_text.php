@@ -24,7 +24,7 @@ use core_ai\aiactions\responses\response_base;
  * This class lives inside aiprovider_awsbr rather than \core_ai\aiactions\responses
  * because Moodle core does not yet ship an embeddings response class. It extends
  * the core response_base and adds the embedding-specific fields consumed by
- * local_ezra's RAG layer.
+ * calling plugins.
  *
  * Fields returned:
  *  - vector  : array of floats (the embedding vector)

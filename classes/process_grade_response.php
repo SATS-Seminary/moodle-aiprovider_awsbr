@@ -80,10 +80,10 @@ class process_grade_response extends abstract_processor {
     /**
      * Reject a model override that the provider does not offer, then query Bedrock.
      *
-     * A caller-supplied model must be listed in the provider's availablemodels
-     * (compared on the id before '|') or be the action-configured model, so a
+     * A caller-supplied model must be one this provider instance allows (the
+     * models its model dropdowns offer) or be the action-configured model, so a
      * caller cannot point the request at an arbitrary model. The check happens
-     * before any AWS call.
+     * before the Converse call.
      *
      * @return array Standard Moodle response array.
      */
@@ -113,12 +113,15 @@ class process_grade_response extends abstract_processor {
     /**
      * Whether a model id may be used as an override.
      *
-     * @param string $modelid
+     * Allowed: any model in this instance's allowed options (live catalog,
+     * narrowed by availablemodels when that is not blank), or the model
+     * configured for the action.
+     *
+     * @param string $modelid The model id to check.
      * @return bool
      */
     protected function is_model_allowed(string $modelid): bool {
-        $available = array_keys(model_catalog::parse_allowlist((string) ($this->provider->config['availablemodels'] ?? '')));
-        if (in_array($modelid, $available, true)) {
+        if (array_key_exists($modelid, $this->get_allowed_models())) {
             return true;
         }
         $configured = (string) ($this->provider->actionconfig[$this->action::class]['settings']['model'] ?? '');
@@ -127,7 +130,7 @@ class process_grade_response extends abstract_processor {
 
     /**
      * Resolve the model: the (validated) override, else the action-configured
-     * model, else the first availablemodels entry.
+     * model, else the first model the instance allows.
      *
      * @return string Bedrock inference profile ID.
      */

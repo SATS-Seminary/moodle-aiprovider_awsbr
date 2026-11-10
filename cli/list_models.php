@@ -21,6 +21,7 @@
  * Usage:
  *   php ai/provider/awsbr/cli/list_models.php
  *   php ai/provider/awsbr/cli/list_models.php --refresh
+ *   php ai/provider/awsbr/cli/list_models.php --providerid=2
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
@@ -33,7 +34,7 @@ require(__DIR__ . '/../../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
 [$options, $unrecognised] = cli_get_params(
-    ['help' => false, 'refresh' => false],
+    ['help' => false, 'refresh' => false, 'providerid' => 0],
     ['h' => 'help', 'r' => 'refresh'],
 );
 
@@ -41,13 +42,19 @@ if ($options['help']) {
     cli_writeln("List invokable Bedrock inference profiles for aiprovider_awsbr.\n");
     cli_writeln("Options:");
     cli_writeln("  -r, --refresh   Bypass the cache and re-query Bedrock.");
+    cli_writeln("  --providerid=N  Use provider instance N (default: the first enabled instance).");
     cli_writeln("  -h, --help      Show this help.");
     exit(0);
 }
 
-$catalog = \aiprovider_awsbr\model_catalog::discover();
+$providerid = (int) $options['providerid'];
+$catalog = $providerid > 0
+    ? \aiprovider_awsbr\model_catalog::for_provider_id($providerid)
+    : \aiprovider_awsbr\model_catalog::discover();
 if ($catalog === null) {
-    cli_error('No enabled aiprovider_awsbr provider found.');
+    cli_error($providerid > 0
+        ? "No aiprovider_awsbr provider instance with id {$providerid} found."
+        : 'No enabled aiprovider_awsbr provider found.');
 }
 
 $models = $catalog->list((bool) $options['refresh']);

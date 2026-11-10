@@ -31,6 +31,9 @@ use core_ai\process_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 abstract class abstract_processor extends process_base {
+    /** @var array|null Cached id => label map of the models this instance allows. */
+    private ?array $allowedmodels = null;
+
     /**
      * Build the argument array to pass to BedrockRuntimeClient::converse().
      *
@@ -64,10 +67,10 @@ abstract class abstract_processor extends process_base {
      *
      * Resolution order:
      *   1. A per-request `modeloverride` property pinned on the action by the
-     *      caller (e.g. local_ezra passes the active prompt's model_pref so each
-     *      prompt role can target its own model).
+     *      caller (e.g. a calling plugin passing its own model preference per
+     *      prompt).
      *   2. The per-action actionconfig model configured in admin.
-     *   3. The first model in the availablemodels textarea.
+     *   3. The first model this provider instance allows.
      *
      * @return string Bedrock inference profile ID.
      */
@@ -86,19 +89,25 @@ abstract class abstract_processor extends process_base {
         if (!empty($model)) {
             return $model;
         }
-        // Fall back: take the first entry from the availablemodels textarea.
-        $rawmodels = $this->provider->config['availablemodels'] ?? '';
-        foreach (explode("\n", $rawmodels) as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-            $parts = explode('|', $line, 2);
-            if (!empty($parts[0])) {
-                return trim($parts[0]);
-            }
+        // Fall back to the first model this instance allows.
+        $options = $this->get_allowed_models();
+        return $options ? (string) array_key_first($options) : '';
+    }
+
+    /**
+     * The models this provider instance allows, as id => label.
+     *
+     * Comes from the instance's live catalog narrowed by its availablemodels
+     * setting; falls back to that setting alone when the catalog is unavailable.
+     * Resolved once per processor.
+     *
+     * @return array Map of model id => label.
+     */
+    protected function get_allowed_models(): array {
+        if ($this->allowedmodels === null) {
+            $this->allowedmodels = (new model_catalog($this->provider))->allowed_options();
         }
-        return '';
+        return $this->allowedmodels;
     }
 
     /**

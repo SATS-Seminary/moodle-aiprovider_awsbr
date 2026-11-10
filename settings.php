@@ -17,8 +17,7 @@
 /**
  * Admin settings for aiprovider_awsbr.
  *
- * Implements the full credential / region / model / rate-limit settings page
- * as specified in contracts.md (stream A1).
+ * The credential / region / model / rate-limit settings page.
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
@@ -106,7 +105,7 @@ if ($hassiteconfig) {
         'aiprovider_awsbr/region',
         get_string('region', 'aiprovider_awsbr'),
         get_string('region_help', 'aiprovider_awsbr'),
-        'af-south-1',
+        'us-east-1',
     ));
 
     // Fallback region (optional; blank = disabled).

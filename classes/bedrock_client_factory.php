@@ -46,6 +46,10 @@ class bedrock_client_factory {
     private const CACHE_AREA = 'aiprovider_awsbr';
     /** MUC cache key prefix for assumed-role credentials. */
     private const CACHE_KEY_PREFIX = 'assumed_creds_';
+    /** Read timeout, in seconds, of runtime calls. */
+    public const DEFAULT_TIMEOUT = 120;
+    /** Read timeout, in seconds, of image generation calls (AWS advises at least 300). */
+    public const IMAGE_TIMEOUT = 300;
 
     /**
      * Constructor.
@@ -62,10 +66,13 @@ class bedrock_client_factory {
      * Return a BedrockRuntimeClient for the given region.
      *
      * @param string|null $region  AWS region. Defaults to the provider's primary region.
+     * @param int|null    $timeout Read timeout in seconds. Defaults to {@see DEFAULT_TIMEOUT}; image
+     *                             generation passes {@see IMAGE_TIMEOUT} because AWS advises 300 s or more.
      * @return BedrockRuntimeClient
      */
-    public function get_runtime_client(?string $region = null): BedrockRuntimeClient {
-        $region   = $region ?? ($this->provider->config['region'] ?? 'af-south-1');
+    public function get_runtime_client(?string $region = null, ?int $timeout = null): BedrockRuntimeClient {
+        $timeout  = $timeout ?? self::DEFAULT_TIMEOUT;
+        $region   = $region ?? ($this->provider->config['region'] ?? 'us-east-1');
         $authmode = $this->provider->config['authmode'] ?? 'instance_role';
 
         // Bearer-token auth (AWS Bedrock API keys): no SigV4 signing — we attach
@@ -76,7 +83,7 @@ class bedrock_client_factory {
                 'region'      => $region,
                 'version'     => 'latest',
                 'credentials' => false, // Disable SigV4.
-                'http'        => ['connect_timeout' => 10, 'timeout' => 120],
+                'http'        => self::http_options($timeout),
             ];
             $client = new BedrockRuntimeClient($args);
             $this->add_bearer_token_middleware($client, $apikey);
@@ -89,12 +96,22 @@ class bedrock_client_factory {
             'region'      => $region,
             'version'     => 'latest',
             'credentials' => $this->build_credentials_provider(),
-            'http'        => ['connect_timeout' => 10, 'timeout' => 120],
+            'http'        => self::http_options($timeout),
         ];
 
         $client = new BedrockRuntimeClient($args);
         $this->configure_proxy($client);
         return $client;
+    }
+
+    /**
+     * The HTTP options of a runtime client.
+     *
+     * @param int $timeout Read timeout in seconds.
+     * @return array
+     */
+    protected static function http_options(int $timeout): array {
+        return ['connect_timeout' => 10, 'timeout' => $timeout];
     }
 
     /**
@@ -108,7 +125,7 @@ class bedrock_client_factory {
      * @return BedrockClient
      */
     public function get_control_client(?string $region = null): BedrockClient {
-        $region   = $region ?? ($this->provider->config['region'] ?? 'af-south-1');
+        $region   = $region ?? ($this->provider->config['region'] ?? 'us-east-1');
         $authmode = $this->provider->config['authmode'] ?? 'instance_role';
 
         if ($authmode === 'api_key') {
@@ -195,7 +212,7 @@ class bedrock_client_factory {
     protected function build_assume_role_provider(): callable {
         $rolearn     = $this->provider->config['assumerolearn'] ?? '';
         $sessionname = $this->provider->config['assumerolesessionname'] ?? 'moodle-bedrock';
-        $region      = $this->provider->config['region'] ?? 'af-south-1';
+        $region      = $this->provider->config['region'] ?? 'us-east-1';
 
         // Check MUC for a valid cached session first.
         $cachekey    = self::CACHE_KEY_PREFIX . md5($rolearn . $sessionname);

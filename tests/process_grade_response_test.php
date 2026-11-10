@@ -42,6 +42,9 @@ final class process_grade_response_test extends \advanced_testcase {
     /** Newer model that rejects sampling parameters and accepts effort. */
     private const HAIKU55 = 'global.anthropic.claude-haiku-5-5';
 
+    /** A model that is not offered by the test provider's allowed models. */
+    private const OPUS_ID = 'global.anthropic.claude-opus-9';
+
     /** @var \core_ai\manager */
     private \core_ai\manager $manager;
 
@@ -212,6 +215,20 @@ final class process_grade_response_test extends \advanced_testcase {
         return (new \ReflectionMethod($processor, 'build_request_args'))->invoke($processor);
     }
 
+    /**
+     * Put a live profile list in the catalog cache, so no AWS call is made.
+     *
+     * @param provider $provider The provider instance.
+     * @param string[] $ids The invokable profile ids.
+     */
+    private function seed_catalog(provider $provider, array $ids): void {
+        $models = [];
+        foreach ($ids as $id) {
+            $models[] = ['id' => $id, 'name' => 'Live ' . $id, 'status' => 'ACTIVE'];
+        }
+        \cache::make('aiprovider_awsbr', 'model_catalog')->set(model_catalog::cache_key($provider), $models);
+    }
+
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
@@ -226,6 +243,7 @@ final class process_grade_response_test extends \advanced_testcase {
             provider:     $this->provider,
             actionconfig: $this->action_config(),
         );
+        $this->seed_catalog($this->provider, [self::SONNET45, self::HAIKU55, self::OPUS_ID]);
         // The request shape must not depend on the AWS SDK of the Moodle under test.
         process_grade_response::set_cache_points_for_testing(true);
     }
@@ -512,6 +530,54 @@ final class process_grade_response_test extends \advanced_testcase {
     }
 
     /**
+     * With availablemodels blank, any model the live catalog offers may be requested.
+     */
+    public function test_process_model_override_allowed_when_availablemodels_blank(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+        $provider = $this->manager->create_provider_instance(
+            classname: '\aiprovider_awsbr\provider',
+            name:      'test-bedrock-grade-blank-list',
+            config:    array_merge($this->provider_config(), ['availablemodels' => '']),
+        );
+        $this->seed_catalog($provider, [self::SONNET45, self::HAIKU55]);
+
+        $processor = $this->make_processor(
+            $provider,
+            $this->make_action(['modelid' => self::HAIKU55]),
+            new MockHandler([new Result(self::converse_data())]),
+        );
+        $this->assertTrue($processor->process()->get_success());
+        $this->assertSame(self::HAIKU55, $processor->requests[0]['modelId']);
+
+        // A model the catalog does not offer is still refused.
+        $refused = $this->make_processor(
+            $provider,
+            $this->make_action(['modelid' => self::OPUS_ID]),
+            new MockHandler([]),
+        );
+        $this->assertSame(400, $refused->process()->get_errorcode());
+    }
+
+    /**
+     * With no configured model and a blank availablemodels, the first live model is used.
+     */
+    public function test_build_request_args_uses_first_live_model_when_availablemodels_blank(): void {
+        $provider = $this->manager->create_provider_instance(
+            classname: '\aiprovider_awsbr\provider',
+            name:      'test-bedrock-grade-blank-first',
+            config:    array_merge($this->provider_config(), ['availablemodels' => '']),
+        );
+        $this->seed_catalog($provider, [self::SONNET45, self::HAIKU55]);
+        $provider = $this->manager->update_provider_instance(
+            provider:     $provider,
+            actionconfig: $this->action_config(''),
+        );
+        $processor = new process_grade_response($provider, $this->make_action());
+        $args = (new \ReflectionMethod($processor, 'build_request_args'))->invoke($processor);
+        $this->assertSame(self::SONNET45, $args['modelId'], 'the first model of the catalog');
+    }
+
+    /**
      * The action-configured model may be requested even if availablemodels is blank.
      */
     public function test_process_model_override_equal_to_configured_model(): void {
@@ -525,6 +591,8 @@ final class process_grade_response_test extends \advanced_testcase {
             provider:     $provider,
             actionconfig: $this->action_config(self::HAIKU55),
         );
+        // The catalog cannot be loaded (nothing cached for this instance and no AWS).
+        $this->seed_catalog($provider, []);
 
         $allowed = $this->make_processor(
             $provider,

@@ -22,9 +22,7 @@ use core_ai\form\action_settings_form;
  * AWS Bedrock AI provider.
  *
  * Plugs into Moodle's \core_ai\manager to provide generate_text, summarise_text,
- * explain_text, embed_text and grade_response actions via AWS Bedrock.
- *
- * Stream A1 + A2 + A4 implementation.
+ * explain_text, generate_image, embed_text and grade_response actions via AWS Bedrock.
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
@@ -43,6 +41,7 @@ class provider extends \core_ai\provider {
             \core_ai\aiactions\explain_text::class,
             \aiprovider_awsbr\aiactions\embed_text::class,
             \aiprovider_awsbr\aiactions\grade_response::class,
+            \core_ai\aiactions\generate_image::class,
         ];
     }
 
@@ -59,8 +58,7 @@ class provider extends \core_ai\provider {
     /**
      * Return the per-action settings form instance.
      *
-     * All three text actions share the same form class. embed_text has no form yet
-     * (owned by stream A3).
+     * All three text actions share the same form class. embed_text and grade_response have their own.
      *
      * {@inheritdoc}
      */
@@ -77,7 +75,7 @@ class provider extends \core_ai\provider {
             return new form\action_generate_text_form(customdata: $customdata);
         }
 
-        // A3: embed_text has its own lighter form (no system instruction / inference params).
+        // The embed_text action has its own lighter form (no system instruction / inference params).
         if ($actionname === 'embed_text') {
             return new form\action_embed_text_form(customdata: $customdata);
         }
@@ -85,6 +83,11 @@ class provider extends \core_ai\provider {
         // The grade_response action: light form (model, max tokens, effort); the caller supplies the prompts.
         if ($actionname === 'grade_response') {
             return new form\action_grade_response_form(customdata: $customdata);
+        }
+
+        // The generate_image action: model, negative prompt and CFG scale.
+        if ($actionname === 'generate_image') {
+            return new form\action_generate_image_form(customdata: $customdata);
         }
 
         return false;
@@ -108,7 +111,7 @@ class provider extends \core_ai\provider {
             return $mform->get_defaults();
         }
 
-        // A3: embed_text defaults.
+        // Defaults for the embed_text action.
         if ($actionname === 'embed_text') {
             $mform = new form\action_embed_text_form(customdata: $customdata);
             return $mform->get_defaults();
@@ -117,6 +120,12 @@ class provider extends \core_ai\provider {
         // Defaults for the grade_response action.
         if ($actionname === 'grade_response') {
             $mform = new form\action_grade_response_form(customdata: $customdata);
+            return $mform->get_defaults();
+        }
+
+        // Defaults for the generate_image action.
+        if ($actionname === 'generate_image') {
+            $mform = new form\action_generate_image_form(customdata: $customdata);
             return $mform->get_defaults();
         }
 

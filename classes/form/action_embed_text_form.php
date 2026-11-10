@@ -22,7 +22,7 @@ use core_ai\form\action_settings_form;
  * Per-action settings form for embed_text.
  *
  * Fields:
- *  - model      : dropdown populated from the provider's availablemodels setting.
+ *  - model      : dropdown of the embedding models this provider instance allows.
  *                 Default: amazon.titan-embed-text-v2:0.
  *  - dimensions : optional integer override for Titan v2 output dimensions (256 / 512 / 1024).
  *                 Cohere does not support this; the field is shown for all models but
@@ -50,7 +50,7 @@ class action_embed_text_form extends action_settings_form {
         $providerid   = $this->_customdata['providerid'] ?? 0;
 
         // Model dropdown.
-        $modeloptions = $this->get_model_options($providerid);
+        $modeloptions = $this->get_model_options((int) $providerid, (string) ($actionconfig['model'] ?? ''));
         $mform->addElement(
             'select',
             'model',
@@ -109,55 +109,25 @@ class action_embed_text_form extends action_settings_form {
     }
 
     /**
-     * Build the model dropdown options from the stored availablemodels admin setting.
+     * Build the model dropdown options for this provider instance.
      *
-     * Reads the config for this specific provider instance (by provider ID) when
-     * possible, otherwise reads the global plugin config. The list is not filtered
-     * to embedding-only models so admins can choose any model, but the default
-     * always points to Titan v2.
+     * Comes from the instance's embedding models (ListFoundationModels), narrowed
+     * by its availablemodels setting; the default points to Titan v2. Nothing is
+     * read from site-wide config, and no AWS call is made without a provider id.
      *
-     * @param int $providerid The provider instance ID (0 if creating a new provider).
+     * @param int $providerid The provider instance ID (0 when unknown).
+     * @param string $saved The model currently saved for the action.
      * @return array Associative array of profile_id => Display label.
      */
-    private function get_model_options(int $providerid): array {
-        $rawmodels = '';
-
-        if ($providerid > 0) {
-            try {
-                global $DB;
-                $record = $DB->get_record('ai_provider', ['id' => $providerid], 'config');
-                if ($record) {
-                    $config    = json_decode($record->config, true);
-                    $rawmodels = $config['availablemodels'] ?? '';
-                }
-            } catch (\Throwable $e) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-                // Intentional: silently fall through to plugin config.
-            }
+    private function get_model_options(int $providerid, string $saved): array {
+        $options = \aiprovider_awsbr\model_catalog::embedding_options_for_provider_id($providerid);
+        if ($saved !== '' && !isset($options[$saved])) {
+            $options[$saved] = $saved;
         }
-
-        if (empty($rawmodels)) {
-            $rawmodels = get_config('aiprovider_awsbr', 'availablemodels') ?? '';
-        }
-
-        $options = [];
-        foreach (explode("\n", $rawmodels) as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-            $parts = explode('|', $line, 2);
-            $id    = trim($parts[0]);
-            $label = isset($parts[1]) ? trim($parts[1]) : $id;
-            if (!empty($id)) {
-                $options[$id] = $label;
-            }
-        }
-
         if (empty($options)) {
-            // Always have the default model available even if availablemodels is empty.
-            $options[self::DEFAULT_MODEL] = 'Titan Text Embeddings v2 (1024-dim)';
+            // Always have the default model available, e.g. when the catalog cannot be loaded.
+            $options[self::DEFAULT_MODEL] = get_string('action:embed_text:model_default', 'aiprovider_awsbr');
         }
-
         return $options;
     }
 }

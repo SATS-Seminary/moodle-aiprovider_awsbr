@@ -32,15 +32,15 @@ use Aws\S3\S3Client;
  * (static / instance_role / assume_role).
  *
  * The speech REGION is configured separately from the Bedrock translation region:
- * Polly's GENERATIVE engine is not in every region (e.g. not eu-west-1; it is in
- * eu-west-2 / eu-central-1), so `speechregion` is its own setting.
+ * Polly's GENERATIVE engine is not in every region (for example, it is
+ * not offered in every EU region), so `speechregion` is its own setting.
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class speech_client_factory extends bedrock_client_factory {
-    /** Default speech region — a generative-Polly-capable EU region. */
+    /** Default speech region — a region where Polly's generative engine is available. */
     public const DEFAULT_SPEECH_REGION = 'eu-central-1';
 
     /** Per-request timeout (seconds) for the large-upload S3 client. */

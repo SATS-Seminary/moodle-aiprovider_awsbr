@@ -36,7 +36,7 @@ use aiprovider_awsbr\aiactions\embed_text;
  * injected through anonymous subclasses of the processor classes (matching the unit-
  * test patterns established in process_generate_text_test and process_embed_text_test).
  *
- * Stream A5 — integration smoke test.
+ * Integration smoke test.
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)

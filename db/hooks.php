@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $callbacks = [
-    // A5 - Hook listener: inform admins that proxy/CA settings are inherited from Moodle's HTTP config.
+    // Hook listener: inform admins that proxy/CA settings are inherited from Moodle's HTTP config.
     [
         'hook'     => \core_ai\hook\after_ai_provider_form_hook::class,
         'callback' => '\aiprovider_awsbr\hook_listener::handle_provider_form',

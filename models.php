@@ -31,12 +31,16 @@ $context = context_system::instance();
 require_capability('moodle/site:config', $context);
 
 $PAGE->set_context($context);
-$PAGE->set_url(new moodle_url('/ai/provider/awsbr/models.php'));
+$providerid = optional_param('providerid', 0, PARAM_INT);
+$PAGE->set_url(new moodle_url('/ai/provider/awsbr/models.php', $providerid ? ['providerid' => $providerid] : []));
 $PAGE->set_pagelayout('admin');
 $PAGE->set_title(get_string('models_page_title', 'aiprovider_awsbr'));
 $PAGE->set_heading(get_string('models_page_heading', 'aiprovider_awsbr'));
 
-$catalog = \aiprovider_awsbr\model_catalog::discover();
+// The requested instance, else the first enabled one.
+$catalog = $providerid > 0
+    ? \aiprovider_awsbr\model_catalog::for_provider_id($providerid)
+    : \aiprovider_awsbr\model_catalog::discover();
 
 // Refresh action — re-query Bedrock and repopulate the cache.
 if (optional_param('refresh', 0, PARAM_BOOL) && confirm_sesskey()) {

@@ -118,7 +118,7 @@ class hook_listener {
             ['size' => 20]
         );
         $mform->setType('region', PARAM_TEXT);
-        $mform->setDefault('region', 'af-south-1');
+        $mform->setDefault('region', 'us-east-1');
         $mform->addHelpButton('region', 'region', 'aiprovider_awsbr');
         $mform->addRule('region', get_string('required'), 'required', null, 'client');
 
@@ -141,7 +141,7 @@ class hook_listener {
         );
 
         // Separate from the Bedrock region: Polly's generative engine is only in
-        // some regions (e.g. eu-west-2 / eu-central-1, not eu-west-1).
+        // some regions.
         $mform->addElement(
             'text',
             'speechregion',
@@ -181,8 +181,17 @@ class hook_listener {
             ['size' => 20]
         );
         $mform->setType('speechvoice', PARAM_ALPHA);
-        $mform->setDefault('speechvoice', 'Ambre');
+        $mform->setDefault('speechvoice', 'Ruth');
         $mform->addHelpButton('speechvoice', 'speechvoice', 'aiprovider_awsbr');
+
+        $mform->addElement(
+            'text',
+            'speechlanguage',
+            get_string('speechlanguage', 'aiprovider_awsbr'),
+            ['size' => 10]
+        );
+        $mform->setType('speechlanguage', PARAM_TEXT);
+        $mform->addHelpButton('speechlanguage', 'speechlanguage', 'aiprovider_awsbr');
 
         // Available inference profile IDs.
         $mform->addElement(
@@ -202,7 +211,14 @@ class hook_listener {
         $mform->addHelpButton('availablemodels', 'availablemodels', 'aiprovider_awsbr');
 
         // Link to the live model browser / refresh tool (admin UI, no CLI needed).
-        $browseurl = new \moodle_url('/ai/provider/awsbr/models.php');
+        // The hook does not expose the instance id, but the provider form page
+        // (ai/configure.php) is opened with it as the 'id' parameter.
+        $browseparams = [];
+        $providerid   = optional_param('id', 0, PARAM_INT);
+        if ($providerid > 0) {
+            $browseparams['providerid'] = $providerid;
+        }
+        $browseurl = new \moodle_url('/ai/provider/awsbr/models.php', $browseparams);
         $mform->addElement(
             'static',
             'models_browse',

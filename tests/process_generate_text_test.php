@@ -127,8 +127,8 @@ final class process_generate_text_test extends \advanced_testcase {
 
     /**
      * A per-request `modeloverride` pinned on the action takes precedence over
-     * the configured per-action model — this is how callers (e.g. local_ezra)
-     * route different prompts to different models.
+     * the configured per-action model — this is how a calling plugin
+     * routes different prompts to different models.
      */
     public function test_build_request_args_honours_model_override(): void {
         // Pin an override that differs from the action-configured model.
@@ -284,7 +284,7 @@ final class process_generate_text_test extends \advanced_testcase {
     /**
      * Inject an Aws\MockHandler into the factory by subclassing bedrock_client_factory.
      *
-     * @param array $queuedResults Results to queue in the mock.
+     * @param array $queuedresults Results to queue in the mock.
      * @return MockHandler The mock handler, so tests can inspect call counts.
      */
     private function inject_mock_handler(array $queuedresults): MockHandler {
@@ -482,7 +482,7 @@ final class process_generate_text_test extends \advanced_testcase {
              *
              * @param provider $provider The provider instance.
              * @param \core_ai\aiactions\base $action The action to process.
-             * @param int $callcounter Reference to the caller's Converse call counter.
+             * @param int &$callcounter Reference to the caller's Converse call counter.
              */
             public function __construct(
                 provider $provider,
@@ -530,7 +530,7 @@ final class process_generate_text_test extends \advanced_testcase {
              *
              * @param provider $provider The provider instance.
              * @param \core_ai\aiactions\base $action The action to process.
-             * @param int $callcounter Reference to the caller's Converse call counter.
+             * @param int &$callcounter Reference to the caller's Converse call counter.
              */
             public function __construct(
                 provider $provider,

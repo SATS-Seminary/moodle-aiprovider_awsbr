@@ -54,7 +54,7 @@ class action_grade_response_form extends action_settings_form {
             'select',
             'model',
             get_string("action:{$actionname}:model", 'aiprovider_awsbr'),
-            $this->get_model_options(),
+            $this->get_model_options((int) $providerid, (string) ($actionconfig['model'] ?? '')),
         );
         $mform->setType('model', PARAM_TEXT);
         $mform->setDefault('model', $actionconfig['model'] ?? '');
@@ -112,20 +112,21 @@ class action_grade_response_form extends action_settings_form {
     }
 
     /**
-     * Build the model dropdown options.
+     * Build the model dropdown options for this provider instance.
      *
-     * Same source as the generate_text form: the live catalog of invokable
-     * profiles, narrowed and relabelled by the optional availablemodels setting.
-     * The first option leaves the model empty, meaning the first available model.
+     * Same source as the other forms: the instance's live catalog narrowed by its
+     * availablemodels setting. The first option leaves the model empty, meaning
+     * the first available model. No AWS call is made without a provider id.
      *
+     * @param int $providerid The provider instance ID (0 when unknown).
+     * @param string $saved The model currently saved for the action.
      * @return array Associative array of profile_id => Display label.
      */
-    private function get_model_options(): array {
-        $rawmodels = (string) (get_config('aiprovider_awsbr', 'availablemodels') ?? '');
-        $allowlist = \aiprovider_awsbr\model_catalog::parse_allowlist($rawmodels);
-        $catalog   = \aiprovider_awsbr\model_catalog::discover();
-        $options   = $catalog !== null ? $catalog->options($allowlist) : $allowlist;
-
+    private function get_model_options(int $providerid, string $saved): array {
+        $options = \aiprovider_awsbr\model_catalog::options_for_provider_id($providerid);
+        if ($saved !== '' && !isset($options[$saved])) {
+            $options[$saved] = $saved;
+        }
         return ['' => get_string('action:grade_response:model_default', 'aiprovider_awsbr')] + $options;
     }
 }

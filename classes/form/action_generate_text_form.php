@@ -22,7 +22,7 @@ use core_ai\form\action_settings_form;
  * Per-action settings form for generate_text (also used by summarise_text and explain_text).
  *
  * Fields:
- *  - model            : dropdown populated from the provider's availablemodels setting.
+ *  - model            : dropdown of the models this provider instance allows.
  *  - systeminstruction: textarea (defaults to the action class's lang string default).
  *  - maxtokens        : integer (1–8192).
  *  - temperature      : float 0.0–1.0.
@@ -44,8 +44,8 @@ class action_generate_text_form extends action_settings_form {
         $providerid   = $this->_customdata['providerid'] ?? 0;
 
         // Model dropdown.
-        // Build options from the provider's availablemodels textarea setting.
-        $modeloptions = $this->get_model_options($providerid);
+        // Options come from this provider instance only.
+        $modeloptions = $this->get_model_options((int) $providerid, (string) ($actionconfig['model'] ?? ''));
         $mform->addElement(
             'select',
             'model',
@@ -131,46 +131,25 @@ class action_generate_text_form extends action_settings_form {
     }
 
     /**
-     * Build the model dropdown options from the stored availablemodels admin setting.
+     * Build the model dropdown options for this provider instance.
      *
-     * Reads the config for this specific provider instance (by provider ID) when
-     * possible, otherwise reads the global plugin config.
+     * Comes from the instance's live catalog, narrowed by its availablemodels
+     * setting. Nothing is read from site-wide config, and no AWS call is made
+     * without a provider id. A model already saved for the action is kept in
+     * the list so that saving the form does not silently change it.
      *
-     * @param int $providerid The provider instance ID (0 if creating a new provider).
+     * @param int $providerid The provider instance ID (0 when unknown).
+     * @param string $saved The model currently saved for the action.
      * @return array Associative array of profile_id => Display label.
      */
-    private function get_model_options(int $providerid): array {
-        $rawmodels = '';
-
-        if ($providerid > 0) {
-            // Try to load from the provider record.
-            try {
-                global $DB;
-                $record = $DB->get_record('ai_provider', ['id' => $providerid], 'config');
-                if ($record) {
-                    $config    = json_decode($record->config, true);
-                    $rawmodels = $config['availablemodels'] ?? '';
-                }
-            } catch (\Throwable $e) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-                // Intentional: silently fall through to plugin config.
-            }
+    private function get_model_options(int $providerid, string $saved): array {
+        $options = \aiprovider_awsbr\model_catalog::options_for_provider_id($providerid);
+        if ($saved !== '' && !isset($options[$saved])) {
+            $options[$saved] = $saved;
         }
-
-        if (empty($rawmodels)) {
-            $rawmodels = get_config('aiprovider_awsbr', 'availablemodels') ?? '';
-        }
-
-        // Live catalog is the source of truth; the availablemodels textarea is an
-        // optional curation overlay (subset + custom labels). This guarantees the
-        // dropdown only offers models that are actually invokable.
-        $allowlist = \aiprovider_awsbr\model_catalog::parse_allowlist((string) $rawmodels);
-        $catalog   = \aiprovider_awsbr\model_catalog::discover();
-        $options   = $catalog !== null ? $catalog->options($allowlist) : $allowlist;
-
         if (empty($options)) {
             $options[''] = get_string('action:generate_text:model_none', 'aiprovider_awsbr');
         }
-
         return $options;
     }
 }

@@ -101,21 +101,21 @@ final class speech_test extends \advanced_testcase {
 
     public function test_synthesize_uses_generative_engine_and_returns_audio(): void {
         $mock = new MockHandler();
-        $mock->append(new Result(['AudioStream' => Utils::streamFor('FRENCH_AUDIO'), 'ContentType' => 'audio/mpeg']));
+        $mock->append(new Result(['AudioStream' => Utils::streamFor('SPOKEN_AUDIO'), 'ContentType' => 'audio/mpeg']));
         $service = new speech($this->make_provider(), polly: $this->mock_client(PollyClient::class, $mock));
 
-        $result = $service->synthesize('Bonjour le monde');
+        $result = $service->synthesize('Hello world');
 
         $this->assertTrue($result['success']);
-        $this->assertSame('FRENCH_AUDIO', $result['audio']);
+        $this->assertSame('SPOKEN_AUDIO', $result['audio']);
         $this->assertSame('audio/mpeg', $result['contenttype']);
 
         $cmd = $mock->getLastCommand();
         $this->assertSame('SynthesizeSpeech', $cmd->getName());
         $this->assertSame('generative', $cmd['Engine'], 'defaults to the generative engine');
-        $this->assertSame('fr-FR', $cmd['LanguageCode']);
+        $this->assertFalse($cmd->hasParam('LanguageCode'), 'no language is sent unless one is configured or passed');
         $this->assertSame('text', $cmd['TextType'], 'never SSML for machine-translated content');
-        $this->assertSame('Ambre', $cmd['VoiceId'], 'defaults to a generative-capable French voice');
+        $this->assertSame('Ruth', $cmd['VoiceId'], 'defaults to a generative-capable voice');
         $this->assertSame('mp3', $cmd['OutputFormat']);
     }
 
@@ -130,6 +130,60 @@ final class speech_test extends \advanced_testcase {
         $this->assertSame('neural', $cmd['Engine']);
         $this->assertSame('Remi', $cmd['VoiceId']);
         $this->assertSame('ogg_vorbis', $cmd['OutputFormat']);
+    }
+
+    public function test_synthesize_sends_the_instance_language_or_the_caller_language(): void {
+        $mock = new MockHandler();
+        $mock->append(new Result(['AudioStream' => Utils::streamFor('x')]));
+        $mock->append(new Result(['AudioStream' => Utils::streamFor('x')]));
+        $service = new speech(
+            $this->make_provider(['speechlanguage' => 'en-GB']),
+            polly: $this->mock_client(PollyClient::class, $mock)
+        );
+
+        $service->synthesize('Hi');
+        $this->assertSame('en-GB', $mock->getLastCommand()['LanguageCode'], 'the instance setting is used');
+
+        $service->synthesize('Salut', ['languagecode' => 'fr-FR']);
+        $this->assertSame('fr-FR', $mock->getLastCommand()['LanguageCode'], 'the caller option wins');
+    }
+
+    public function test_long_synthesis_language_is_optional(): void {
+        $mock = new MockHandler();
+        $mock->append(new Result(['SynthesisTask' => ['TaskId' => 't1']]));
+        $mock->append(new Result(['SynthesisTask' => ['TaskId' => 't2']]));
+        $client = $this->mock_client(PollyClient::class, $mock);
+
+        (new speech($this->make_provider(), polly: $client))->start_long_synthesis('text', 'out/');
+        $this->assertFalse($mock->getLastCommand()->hasParam('LanguageCode'));
+
+        (new speech($this->make_provider(['speechlanguage' => 'en-US']), polly: $client))->start_long_synthesis('text', 'out/');
+        $this->assertSame('en-US', $mock->getLastCommand()['LanguageCode']);
+    }
+
+    public function test_list_voices_filters_by_language_only_when_given(): void {
+        $mock = new MockHandler();
+        $voices = ['Voices' => [['Id' => 'Ruth', 'Name' => 'Ruth'], ['Id' => 'Matthew', 'Name' => 'Matthew']]];
+        $mock->append(new Result($voices));
+        $mock->append(new Result($voices));
+        $mock->append(new Result(['Voices' => [['Id' => 'Lea', 'Name' => 'Léa']]]));
+        $service = new speech($this->make_provider(), polly: $this->mock_client(PollyClient::class, $mock));
+
+        $all = $service->list_voices();
+        $this->assertSame(['Ruth' => 'Ruth', 'Matthew' => 'Matthew'], $all['voices']);
+        $cmd = $mock->getLastCommand();
+        $this->assertSame('generative', $cmd['Engine']);
+        $this->assertFalse($cmd->hasParam('LanguageCode'));
+
+        $service->list_voices('en-US', 'neural');
+        $cmd = $mock->getLastCommand();
+        $this->assertSame('en-US', $cmd['LanguageCode']);
+        $this->assertSame('neural', $cmd['Engine']);
+
+        // The deprecated wrapper asks for French voices.
+        $french = $service->list_french_voices();
+        $this->assertSame(['Lea' => 'Léa'], $french['voices']);
+        $this->assertSame('fr-FR', $mock->getLastCommand()['LanguageCode']);
     }
 
     public function test_start_long_synthesis_writes_to_the_bucket(): void {

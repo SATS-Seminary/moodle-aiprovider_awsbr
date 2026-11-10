@@ -2,6 +2,50 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.7.0 — 2026-11-10
+- New: the core `generate_image` action. Image models are called with
+  `InvokeModel`, with request formats for Amazon Nova Canvas, Amazon Titan Image
+  Generator and Stability AI (Stable Diffusion 3 / 3.5 Large, Stable Image Core
+  and Ultra); any other model fails with `UnsupportedModel`. One image is
+  requested per call. Core's `quality` (`hd` becomes `premium`) and
+  `aspectratio` choose the size, and the core `style` option is ignored because
+  Bedrock has no equivalent. The image is validated, given Moodle's AI watermark
+  and stored in the user's draft area. A request or result blocked by the
+  model's content filters fails with `ContentFiltered` (400) and a message that
+  does not repeat the prompt. Per-action settings: model (default
+  `amazon.nova-canvas-v1:0`), negative prompt and CFG scale. Throttling retries
+  once on the fallback region, as for embeddings. Image calls use a 300 second
+  read timeout, set through the client factory for these calls only. The upgrade
+  adds the action to existing instances **disabled**, because image generation
+  costs money: enable it in Configure actions. New instances have it enabled
+  like the other actions.
+- The model lists are per provider instance. This fixes the model dropdowns
+  reading a table that does not exist and the site-wide setting, so they showed
+  another instance's models (or none). Each dropdown shows its own instance's
+  models, narrowed by that instance's available-models textarea, and keeps the
+  model already saved. No AWS call is made when there is no provider instance.
+- The embedding-model dropdown is filled from Bedrock `ListFoundationModels`
+  (output modality EMBEDDING), and so is the new image-model dropdown (IMAGE).
+  Both are cached per instance. They offer only models the plugin can call:
+  Titan text embeddings and Cohere Embed v3, and the image families above. The
+  same filter applies to the textarea fallback. Embedding and image lines of the
+  textarea no longer appear in the chat-model lists.
+- `grade_response` model overrides accept any model that the dropdown offers
+  (the instance's live list narrowed by the textarea), not only models typed in
+  the textarea. The default model of the chat actions is the first such model.
+- The privacy provider now declares, exports and deletes both audit tables
+  (`aiprovider_awsbr_embed_text` and `aiprovider_awsbr_grade_resp`), and the
+  AWS metadata also covers image descriptions and generated images.
+- Neutral defaults: the Bedrock region is `us-east-1` and the Polly voice is
+  `Ruth`. The speech language is optional (Polly uses the voice's own language
+  when none is set). New `speech::list_voices($languagecode, $engine)`;
+  `list_french_voices()` is deprecated and calls it with `fr-FR`.
+- Corrected the claim that API keys and secret keys are stored encrypted: Moodle
+  saves provider settings as plain text, and the help texts now say so.
+- `models.php` and `cli/list_models.php` take a `providerid` to browse a
+  specific instance; the settings form links to it.
+- A README was added.
+
 ## 1.6.1 — 2026-11-04
 - `grade_response` works with the older AWS SDK that Moodle 5.0 ships (3.342).
   That SDK sent each prompt cache point as an empty block, so Bedrock refused

@@ -29,7 +29,7 @@ use Aws\Exception\MultipartUploadException;
  *
  * Deliberately NOT a synchronous core_ai action: Transcribe and long-form Polly
  * are async (minutes) and S3-backed, which does not fit the request/response
- * action model. Consumers (e.g. local_nida adhoc tasks) call these methods
+ * action model. Consumers (a calling plugin's adhoc tasks, for example) call these methods
  * directly and drive their own submit/poll loop. Every method returns a
  * normalised array `['success' => bool, …]` (never throws to the caller).
  *
@@ -60,6 +60,8 @@ class speech {
      * @param PollyClient|null              $polly      injected client (tests); else built on demand.
      * @param TranscribeServiceClient|null  $transcribe injected client (tests).
      * @param S3Client|null                 $s3         injected client (tests).
+     * @param int                           $multipartthreshold multipart threshold in bytes for put_object_file().
+     * @param int                           $multipartpartsize  multipart part size in bytes (at least 5 MB).
      */
     public function __construct(
         /** @var provider the provider instance (IAM-auth config + speech settings). */
@@ -94,9 +96,8 @@ class speech {
                 'TextType'     => 'text',
                 'VoiceId'      => $opts['voiceid'] ?? $this->voice(),
                 'Engine'       => $opts['engine'] ?? $this->engine(),
-                'LanguageCode' => $opts['languagecode'] ?? 'fr-FR',
                 'OutputFormat' => $opts['outputformat'] ?? 'mp3',
-            ]);
+            ] + $this->language_args($opts));
             return [
                 'success'     => true,
                 'audio'       => (string) $result['AudioStream'],
@@ -124,11 +125,10 @@ class speech {
                 'TextType'          => 'text',
                 'VoiceId'           => $opts['voiceid'] ?? $this->voice(),
                 'Engine'            => $opts['engine'] ?? $this->engine(),
-                'LanguageCode'      => $opts['languagecode'] ?? 'fr-FR',
                 'OutputFormat'      => $opts['outputformat'] ?? 'mp3',
                 'OutputS3BucketName' => $this->bucket(),
                 'OutputS3KeyPrefix' => $outputprefix,
-            ]);
+            ] + $this->language_args($opts));
             $task = $result['SynthesisTask'] ?? [];
             return [
                 'success'   => true,
@@ -382,14 +382,19 @@ class speech {
     }
 
     /**
-     * List the available French voices for a given engine (for the settings UI).
+     * List the Polly voices for a language and engine (for the settings UI).
      *
-     * @param string $engine
+     * @param string $languagecode BCP-47 code such as en-US; empty lists every language.
+     * @param string $engine       Polly engine: generative, neural or standard.
      * @return array{success:bool, voices?:array, errorcode?:int, errormessage?:string}
      */
-    public function list_french_voices(string $engine = 'generative'): array {
+    public function list_voices(string $languagecode = '', string $engine = 'generative'): array {
         try {
-            $result = $this->polly()->describeVoices(['LanguageCode' => 'fr-FR', 'Engine' => $engine]);
+            $args = ['Engine' => $engine];
+            if ($languagecode !== '') {
+                $args['LanguageCode'] = $languagecode;
+            }
+            $result = $this->polly()->describeVoices($args);
             $voices = [];
             foreach (($result['Voices'] ?? []) as $v) {
                 $voices[(string) $v['Id']] = (string) $v['Name'];
@@ -398,6 +403,17 @@ class speech {
         } catch (\Throwable $e) {
             return self::failure($e);
         }
+    }
+
+    /**
+     * List the available French voices for a given engine.
+     *
+     * @deprecated Use {@see list_voices()} with 'fr-FR' instead.
+     * @param string $engine Polly engine: generative, neural or standard.
+     * @return array{success:bool, voices?:array, errorcode?:int, errormessage?:string}
+     */
+    public function list_french_voices(string $engine = 'generative'): array {
+        return $this->list_voices('fr-FR', $engine);
     }
 
     /**
@@ -415,10 +431,28 @@ class speech {
      * @return string the configured Polly voice id.
      */
     private function voice(): string {
-        // Default to a GENERATIVE-capable French voice (matches the generative
-        // engine default). Neural-only voices (e.g. Lea) fail with that engine.
+        // Default to a voice that supports the generative engine (the default
+        // engine); neural-only voices fail with it.
         $voice = trim((string) ($this->provider->config['speechvoice'] ?? ''));
-        return $voice !== '' ? $voice : 'Ambre';
+        return $voice !== '' ? $voice : 'Ruth';
+    }
+
+    /**
+     * The LanguageCode argument for a Polly request, or nothing.
+     *
+     * Uses the caller's languagecode option, else the instance's speechlanguage
+     * setting. When neither is set the argument is left out and Polly uses the
+     * voice's own language.
+     *
+     * @param array $opts The caller's options.
+     * @return array Either ['LanguageCode' => code] or an empty array.
+     */
+    private function language_args(array $opts): array {
+        $code = trim((string) ($opts['languagecode'] ?? ''));
+        if ($code === '') {
+            $code = trim((string) ($this->provider->config['speechlanguage'] ?? ''));
+        }
+        return $code !== '' ? ['LanguageCode' => $code] : [];
     }
 
     /**

@@ -30,6 +30,9 @@
  */
 function xmldb_aiprovider_awsbr_upgrade(int $oldversion): bool {
     global $DB;
+
+    require_once(__DIR__ . '/upgradelib.php');
+
     $dbman = $DB->get_manager();
 
     if ($oldversion < 2026052503) {
@@ -89,6 +92,16 @@ function xmldb_aiprovider_awsbr_upgrade(int $oldversion): bool {
         }
 
         upgrade_plugin_savepoint(true, 2026110200, 'aiprovider', 'awsbr');
+    }
+
+    if ($oldversion < 2026111000) {
+        // The generate_image action is new, and added disabled to existing instances so
+        // administrators opt in (image generation costs money). The cache definitions
+        // need no step: the version bump purges all caches, and the model_catalog
+        // definition now also holds a per-instance image model list.
+        aiprovider_awsbr_add_generate_image_disabled();
+
+        upgrade_plugin_savepoint(true, 2026111000, 'aiprovider', 'awsbr');
     }
 
     return true;

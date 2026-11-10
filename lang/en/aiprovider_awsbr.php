@@ -34,18 +34,18 @@ $string['authmode_static'] = 'Static access key + secret';
 $string['authmode_instance_role'] = 'IAM instance role';
 $string['authmode_assume_role'] = 'Assume STS role';
 $string['apikey'] = 'Bedrock API key';
-$string['apikey_help'] = 'A long-term Bedrock API key (bearer token) generated from the AWS Bedrock console. Typically starts with "ABSK". Stored encrypted at rest. Plugin sends this as an Authorization: Bearer header on every Bedrock request.';
+$string['apikey_help'] = 'A long-term Bedrock API key (bearer token) generated from the AWS Bedrock console. Typically starts with "ABSK". Moodle saves provider settings as plain text in the database, so the key is not encrypted at rest; anyone with access to the database or a backup can read it. To avoid storing a key, use the IAM instance role or Assume STS role mode instead. The plugin sends this as an Authorization: Bearer header on every Bedrock request.';
 $string['accesskeyid'] = 'AWS access key ID';
 $string['secretaccesskey'] = 'AWS secret access key';
 $string['assumerolearn'] = 'STS role ARN to assume';
 $string['assumerolesessionname'] = 'STS session name';
 $string['region'] = 'AWS region';
-$string['region_help'] = 'Default af-south-1 (Cape Town). Cross-Region inference profiles route actual computation to AWS commercial regions automatically.';
+$string['region_help'] = 'The AWS region whose Bedrock endpoint receives requests, for example us-east-1 or eu-west-1. Models and inference profiles differ per region. Cross-Region inference profiles may process requests in other AWS regions.';
 $string['fallbackregion'] = 'Fallback region';
 $string['fallbackregion_help'] = 'Optional. If a request is throttled in the primary region, retry once against this region.';
 $string['models_page_title'] = 'Bedrock models';
 $string['models_page_heading'] = 'Available Bedrock models';
-$string['models_intro'] = 'These are the inference profiles that are actually invokable for the configured region. Use any of these IDs as a model in Configure actions or as a prompt model preference. The list is cached; use Refresh to re-query Bedrock after provisioning new models.';
+$string['models_intro'] = 'These are the inference profiles that are actually invokable for the selected provider instance (its region and credentials). Use any of these IDs as a model in Configure actions or as a prompt model preference. The list is cached; use Refresh to re-query Bedrock after provisioning new models.';
 $string['models_refresh'] = 'Refresh from Bedrock';
 $string['models_refreshed'] = 'Refreshed the Bedrock model list — {$a} invokable model(s) available.';
 $string['models_browse_link'] = 'Browse / refresh available models';
@@ -64,18 +64,37 @@ $string['enableglobalratelimit'] = 'Enable global rate limit';
 $string['globalratelimit'] = 'Global request limit (per hour)';
 
 // Privacy provider metadata.
-$string['privacy:metadata:aws_bedrock'] = 'Requests to AWS Bedrock are sent for AI inference. Cross-Region inference may route processing to AWS commercial regions outside South Africa.';
-$string['privacy:metadata:aws_bedrock:prompt'] = 'The prompt text (including any system instruction and assembled user context).';
+$string['privacy:metadata:aws_bedrock'] = 'Requests to AWS Bedrock are sent for AI inference. Cross-Region inference profiles may process requests in other AWS regions than the one configured.';
+$string['privacy:metadata:aws_bedrock:prompt'] = 'The prompt text (including any system instruction and assembled user context), and the description and negative description of an image to generate.';
 $string['privacy:metadata:aws_bedrock:image'] = 'Image content when attached for multimodal inference.';
-$string['privacy:metadata:aws_bedrock:response'] = 'Generated text returned by the AI model.';
-$string['privacy:metadata:ai_action_register'] = 'Records of AI actions are stored in Moodle\'s standard AI audit table with userid, action, model, and token counts.';
+$string['privacy:metadata:aws_bedrock:response'] = 'Generated text returned by the AI model, and the generated image. Generated images are stored in the requesting user\'s draft file area and are covered by Moodle\'s own AI privacy provider and file storage.';
+$string['privacy:metadata:aws_speech'] = 'Text, audio and media are sent to Amazon Polly (text to speech), Amazon Transcribe (speech to text) and Amazon S3 (working storage) when a calling plugin uses the speech services. They run in the configured speech region.';
+$string['privacy:metadata:aws_speech:text'] = 'Text to be spoken, and the transcripts returned.';
+$string['privacy:metadata:aws_speech:audio'] = 'Audio or video files to be transcribed, and the generated audio.';
+$string['privacy:metadata:aiprovider_awsbr_embed_text'] = 'One row for each embed_text request. It is linked to a user and a context through the Moodle AI action register.';
+$string['privacy:metadata:aiprovider_awsbr_embed_text:prompt'] = 'The text that was embedded (the first 4000 characters).';
+$string['privacy:metadata:aiprovider_awsbr_embed_text:vectordim'] = 'The number of dimensions of the resulting vector.';
+$string['privacy:metadata:aiprovider_awsbr_embed_text:prompttokens'] = 'The number of tokens billed for the request.';
+$string['privacy:metadata:aiprovider_awsbr_embed_text:model'] = 'The embedding model that was used.';
+$string['privacy:metadata:aiprovider_awsbr_embed_text:responseid'] = 'The AWS request ID of the call.';
+$string['privacy:metadata:aiprovider_awsbr_embed_text:fingerprint'] = 'The model fingerprint or version marker.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp'] = 'One row for each grade_response request: token counts and a hash of the prompt, never the prompt text. It is linked to a user and a context through the Moodle AI action register.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:model'] = 'The model that was used.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:prompttokens'] = 'The number of input tokens.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:completiontokens'] = 'The number of output tokens.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:cachereadtokens'] = 'The number of input tokens read from the prompt cache.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:cachewritetokens'] = 'The number of input tokens written to the prompt cache.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:stopreason'] = 'Why the model stopped generating.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:responseid'] = 'The AWS request ID of the call.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:prompthash'] = 'A SHA-256 hash of the prompts, which cannot be turned back into text.';
+$string['privacy:metadata:aiprovider_awsbr_grade_resp:timecreated'] = 'The time the row was created.';
 
 // Actions.
 $string['action_generate_text'] = 'Generate text';
 $string['action_summarise_text'] = 'Summarise text';
 $string['action_explain_text'] = 'Explain text';
 $string['action_embed_text'] = 'Embed text (for retrieval / similarity search)';
-$string['action_embed_text_desc'] = 'Convert text into a dense vector (1024-dim for Titan v2) used by the knowledge-base retrieval pipeline. Embedding is non-generative and cheap. Bind this action to the eu-west-1 provider instance because Amazon Titan Text Embeddings v2 is not available in af-south-1.';
+$string['action_embed_text_desc'] = 'Convert text into a dense vector (1024-dim for Amazon Titan Text Embeddings v2; Cohere Embed v3 models are also supported) for retrieval and similarity search. Embedding is non-generative and cheap. Embedding models are not offered in every AWS region, so a second provider instance in another region can serve this action.';
 $string['action_grade_response'] = 'Grade response (structured output)';
 $string['action_grade_response_desc'] = 'Ask a model to answer with a JSON document that follows a JSON schema supplied by the caller (native structured output), for example to assess a student response against a rubric. The caller supplies the prompts and may override the model with one of the available models.';
 
@@ -83,8 +102,6 @@ $string['action_grade_response_desc'] = 'Ask a model to answer with a JSON docum
 $string['systeminstruction_generate_text'] = 'You are a helpful assistant. Answer the user\'s question concisely and accurately.';
 $string['systeminstruction_summarise_text'] = 'Summarise the following text concisely while preserving the key information.';
 $string['systeminstruction_explain_text'] = 'Explain the following text in clearer, simpler terms.';
-
-// Strings added by stream A1 + A2 + A4.
 
 // Settings headings.
 $string['credentials_heading'] = 'AWS Credentials';
@@ -94,7 +111,7 @@ $string['models_heading'] = 'Inference Models';
 $string['speech_heading'] = 'Speech (Polly / Transcribe)';
 $string['speech_heading_desc'] = 'Optional text-to-speech (Amazon Polly) and speech-to-text (Amazon Transcribe). These are separate AWS services, not Bedrock: they require IAM credentials (above), NOT a Bedrock API key, and an S3 bucket for working storage. Leave blank if unused.';
 $string['speechregion'] = 'Speech region';
-$string['speechregion_help'] = 'AWS region for Polly/Transcribe. Set separately from the Bedrock region because Polly\'s high-quality GENERATIVE engine is only in some regions (e.g. eu-west-2 or eu-central-1, not eu-west-1). The IAM profile must grant Polly/Transcribe in this region.';
+$string['speechregion_help'] = 'AWS region for Polly/Transcribe. Set separately from the Bedrock region because Polly\'s high-quality GENERATIVE engine is only in some regions (it is not offered in every region). The IAM profile must grant Polly/Transcribe in this region.';
 $string['speechs3bucket'] = 'Speech S3 bucket';
 $string['speechs3bucket_help'] = 'An S3 bucket (in the speech region) for source media, transcripts and generated audio. The IAM profile needs s3:PutObject/GetObject on it; keep it private.';
 $string['speechengine'] = 'Polly engine';
@@ -103,12 +120,14 @@ $string['speechengine:generative'] = 'Generative (best quality)';
 $string['speechengine:neural'] = 'Neural';
 $string['speechengine:standard'] = 'Standard';
 $string['speechvoice'] = 'Default Polly voice';
-$string['speechvoice_help'] = 'Default voice ID for synthesis (e.g. a generative French voice). Must support the selected engine in the speech region.';
+$string['speechlanguage'] = 'Speech language (optional)';
+$string['speechlanguage_help'] = 'Optional language code for synthesis, for example en-US. Leave it blank to let Polly use the language of the voice. Set it for a bilingual voice, or when a caller passes no language of its own.';
+$string['speechvoice_help'] = 'Default Polly voice ID for synthesis, for example Ruth (an en-US generative voice). Must support the selected engine in the speech region. The voice sets the spoken language unless a language is set below or passed by the caller.';
 $string['ratelimit_heading'] = 'Rate Limiting';
 
 // Credentials detail strings.
 $string['accesskeyid_desc'] = 'Your AWS IAM access key ID. Only required when using "Static access key + secret" authentication.';
-$string['secretaccesskey_desc'] = 'Your AWS IAM secret access key. Stored encrypted. Only required for static key authentication.';
+$string['secretaccesskey_desc'] = 'Your AWS IAM secret access key. Moodle saves it as plain text in the database (not encrypted at rest); prefer the IAM instance role or Assume STS role mode where you can. Only required for static key authentication.';
 $string['assumerolearn_desc'] = 'The full ARN of the IAM role to assume via STS, e.g. arn:aws:iam::123456789012:role/MoodleBedrock.';
 $string['assumerolesessionname_desc'] = 'The STS session name used when assuming the role. Visible in CloudTrail logs.';
 
@@ -120,7 +139,7 @@ $string['globalratelimit_desc'] = 'Maximum number of site-wide requests per hour
 
 // Per-action form strings (generate_text, summarise_text, explain_text share the same form).
 $string['action:generate_text:model'] = 'Model';
-$string['action:generate_text:model_help'] = 'Select the Bedrock inference profile to use for this action. Profiles are managed in the provider\'s main settings page.';
+$string['action:generate_text:model_help'] = 'Select the Bedrock inference profile to use for this action. The list comes from this provider instance: the inference profiles available in its region, narrowed by its Available inference profile IDs setting if that is filled in.';
 $string['action:generate_text:model_none'] = '— No models configured —';
 $string['action:generate_text:systeminstruction'] = 'System instruction';
 $string['action:generate_text:systeminstruction_help'] = 'This instruction is sent to the AI model along with the user\'s prompt. Editing this instruction is not recommended unless absolutely required.';
@@ -161,9 +180,10 @@ $string['effort_high'] = 'High';
 $string['effort_low'] = 'Low';
 $string['effort_medium'] = 'Medium';
 
-// A3 - embed_text strings.
+// Embed text strings.
 $string['action:embed_text:model'] = 'Embedding model';
 $string['action:embed_text:model_help'] = 'Select the Bedrock embedding model to use. The default is Amazon Titan Text Embeddings v2 (1024-dim), which is the cheapest option and supports multilingual text. Cohere Embed Multilingual v3 offers higher retrieval quality at approximately 5× the cost.';
+$string['action:embed_text:model_default'] = 'Amazon Titan Text Embeddings v2 (1024-dim)';
 $string['action:embed_text:model_none'] = '— No models configured —';
 $string['action:embed_text:dimensions'] = 'Vector dimensions (Titan v2 only)';
 $string['action:embed_text:dimensions_help'] = 'Amazon Titan v2 supports configurable output dimensions: 256, 512, or 1024. Lower dimensions reduce storage and cosine-search cost at a small quality penalty. Leave at the default (1024) unless you have measured the trade-off. This setting has no effect on Cohere models.';
@@ -176,16 +196,38 @@ $string['action:grade_response:model_help'] = 'The Bedrock inference profile use
 $string['action:grade_response:maxtokens'] = 'Max tokens';
 $string['action:grade_response:maxtokens_help'] = 'Maximum number of tokens the model may generate, used when the caller does not set a limit. The structured answer is cut off, and the call fails, if it needs more.';
 
+// Strings for the generate_image action.
+$string['action:generate_image:model'] = 'Image model';
+$string['action:generate_image:model_default'] = 'Amazon Nova Canvas';
+$string['action:generate_image:model_help'] = 'The Bedrock image model used to generate images. The list comes from this provider instance: the on-demand image models of its region that this plugin can call (Amazon Nova Canvas, Amazon Titan Image Generator and Stability AI text-to-image models), narrowed by its Available inference profile IDs setting if that has lines for image models. Image models are not offered in every AWS region, and each needs model access in the AWS account. Quality and aspect ratio are chosen by the person generating the image; the style option is ignored because Bedrock has no equivalent.';
+$string['action:generate_image:negativeprompt'] = 'Negative prompt';
+$string['action:generate_image:negativeprompt_help'] = 'Optional. Describes what the images must not show, for example "text, watermark, blurry". Use plain terms of the things to avoid, not negations such as "no text". Sent with every request. Up to 512 characters.';
+$string['action:generate_image:negativeprompt_toolong'] = 'The negative prompt can be at most {$a} characters long.';
+$string['action:generate_image:cfgscale'] = 'CFG scale';
+$string['action:generate_image:cfgscale_help'] = 'Optional. How strictly Amazon Nova Canvas and Amazon Titan follow the prompt, from 1.1 (more freedom) to 10 (strict). Leave it blank to use the model\'s default. It has no effect on Stability AI models.';
+$string['action:generate_image:cfgscale_invalid'] = 'Enter a number from 1.1 to 10, or leave the field blank.';
+
+// Error strings (used by process_generate_image).
+$string['error:generate_image:content_filtered'] = 'The image could not be generated because the request or the result was blocked by the content filters of the image model. Try a different description.';
+$string['error:generate_image:empty'] = 'The image model did not return an image.';
+$string['error:generate_image:inference'] = 'The image model failed to generate an image. Try again.';
+$string['error:generate_image:invalid_image'] = 'The image model returned data that is not a valid image.';
+$string['error:generate_image:invalid_json'] = 'The image model returned a response that could not be read.';
+$string['error:generate_image:no_model'] = 'No image generation model is available on this provider.';
+$string['error:generate_image:no_user'] = 'Images can only be generated for a logged-in user.';
+$string['error:generate_image:throttled'] = 'The image request was throttled in all configured regions.';
+$string['error:generate_image:unsupported_model'] = 'The model {$a} is not a supported image generation model.';
+
 // Error strings (used by process_embed_text).
 $string['error:embed_text:empty_vector'] = 'Bedrock returned an empty or malformed embedding vector.';
 $string['error:embed_text:invalid_json'] = 'Bedrock InvokeModel returned a non-JSON response body.';
 $string['error:embed_text:throttled'] = 'The embedding request was throttled in all configured regions.';
 
-// A5 - Hook listener strings.
+// Hook listener strings.
 $string['proxy_note_heading'] = 'HTTP Proxy & Certificates';
 $string['proxy_note_body'] = 'Bedrock requests inherit Moodle\'s main HTTP proxy and CA settings from Site administration → Server → HTTP.';
 
 // Help strings for fields injected into the provider-instance form (required by addHelpButton).
 $string['accesskeyid_help'] = 'Your AWS IAM access key ID. Only required when authentication mode is "Static access key + secret".';
-$string['secretaccesskey_help'] = 'Your AWS IAM secret access key. Stored encrypted at rest. Only required for static-key auth.';
+$string['secretaccesskey_help'] = 'Your AWS IAM secret access key. Moodle saves provider settings as plain text in the database, so the secret is not encrypted at rest; anyone with access to the database or a backup can read it. To avoid storing a secret, use the IAM instance role or Assume STS role mode. Only required for static key authentication.';
 $string['assumerolearn_help'] = 'Full ARN of the IAM role to assume via STS. Example: arn:aws:iam::123456789012:role/MoodleBedrock.';
