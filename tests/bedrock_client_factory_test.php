@@ -18,7 +18,12 @@ namespace aiprovider_awsbr;
 
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\Credentials\Credentials;
+use Aws\Credentials\CredentialsInterface;
 use Aws\Credentials\InstanceProfileProvider;
+use Aws\History;
+use Aws\MockHandler;
+use Aws\Result;
+use Aws\Sts\StsClient;
 
 /**
  * PHPUnit tests for bedrock_client_factory.
@@ -310,5 +315,195 @@ final class bedrock_client_factory_test extends \advanced_testcase {
     public function test_is_provider_configured_unknown_authmode(): void {
         $provider = $this->make_provider(['authmode' => 'magic_beans']);
         $this->assertFalse($provider->is_provider_configured());
+    }
+
+    // Tests for assume_role base credentials.
+
+    /**
+     * Build a factory whose STS client uses a mocked handler, and record the signed requests.
+     *
+     * @param array $config The provider config.
+     * @param History $history Receives the AssumeRole request(s).
+     * @return bedrock_client_factory
+     */
+    private function make_assume_role_factory(array $config, History $history): bedrock_client_factory {
+        $provider = $this->make_provider($config + ['authmode' => 'assume_role', 'region' => 'us-east-1']);
+        return new class ($provider, $history) extends bedrock_client_factory {
+            /** @var History The request history. */
+            private History $history;
+
+            /**
+             * Constructor.
+             *
+             * @param provider $provider The provider instance.
+             * @param History $history Receives the AssumeRole request(s).
+             */
+            public function __construct(provider $provider, History $history) {
+                parent::__construct($provider);
+                $this->history = $history;
+            }
+
+            /**
+             * Create the STS client with a mocked handler.
+             *
+             * @param string $region AWS region of the STS endpoint.
+             * @param callable|CredentialsInterface $credentials The base credentials.
+             * @return StsClient
+             */
+            protected function create_sts_client(string $region, callable|CredentialsInterface $credentials): StsClient {
+                $client = parent::create_sts_client($region, $credentials);
+                // Replace the network handler; signing still runs, so the request shows the credentials used.
+                $mock = new MockHandler([new Result([
+                    'Credentials' => [
+                        'AccessKeyId'     => 'ASIASESSION',
+                        'SecretAccessKey' => 'sessionsecret',
+                        'SessionToken'    => 'sessiontoken',
+                        'Expiration'      => new \DateTimeImmutable('+1 hour'),
+                    ],
+                ])]);
+                $client->getHandlerList()->setHandler($mock);
+                $client->getHandlerList()->appendSign(\Aws\Middleware::history($this->history), 'history');
+                return $client;
+            }
+
+            /**
+             * Resolve the assume-role credentials, as the client factories do.
+             *
+             * @return string The access key ID of the resulting session credentials ('' if not resolved).
+             */
+            public function resolve(): string {
+                $creds = $this->build_assume_role_provider();
+                return $creds instanceof Credentials ? $creds->getAccessKeyId() : '';
+            }
+        };
+    }
+
+    /**
+     * The access key ID the recorded AssumeRole request was signed with.
+     *
+     * @param History $history The request history.
+     * @return string
+     */
+    private function signing_key_id(History $history): string {
+        $this->assertSame(1, $history->count());
+        $last = $history->getLastReturn();
+        $this->assertInstanceOf(Result::class, $last);
+        $request = $history->toArray()[0]['request'];
+        $this->assertSame(1, preg_match('~Credential=([^/]+)/~', $request->getHeaderLine('Authorization'), $m));
+        return $m[1];
+    }
+
+    /**
+     * Assume role signs the AssumeRole call with the instance's access key ID and secret when set.
+     */
+    public function test_assume_role_uses_static_base_credentials_when_set(): void {
+        $history = new History();
+        $factory = $this->make_assume_role_factory([
+            'assumerolearn'   => 'arn:aws:iam::123456789012:role/static-base',
+            'accesskeyid'     => 'AKIABASE',
+            'secretaccesskey' => 'basesecret',
+        ], $history);
+
+        // Even if the environment offers other credentials, the instance's own win.
+        putenv('AWS_ACCESS_KEY_ID=AKIAFROMENV');
+        putenv('AWS_SECRET_ACCESS_KEY=envsecret');
+        try {
+            $this->assertSame('ASIASESSION', $factory->resolve());
+        } finally {
+            putenv('AWS_ACCESS_KEY_ID');
+            putenv('AWS_SECRET_ACCESS_KEY');
+        }
+        $this->assertSame('AKIABASE', $this->signing_key_id($history));
+    }
+
+    /**
+     * Without base credentials on the instance the SDK default chain signs the AssumeRole call.
+     */
+    public function test_assume_role_uses_default_credential_chain_when_no_base_credentials(): void {
+        $history = new History();
+        $factory = $this->make_assume_role_factory([
+            'assumerolearn' => 'arn:aws:iam::123456789012:role/default-chain',
+        ], $history);
+
+        putenv('AWS_ACCESS_KEY_ID=AKIAFROMENV');
+        putenv('AWS_SECRET_ACCESS_KEY=envsecret');
+        try {
+            $this->assertSame('ASIASESSION', $factory->resolve());
+        } finally {
+            putenv('AWS_ACCESS_KEY_ID');
+            putenv('AWS_SECRET_ACCESS_KEY');
+        }
+        $this->assertSame('AKIAFROMENV', $this->signing_key_id($history));
+    }
+
+    /**
+     * A key without its secret is not enough: the default chain is used.
+     */
+    public function test_assume_role_ignores_a_key_without_a_secret(): void {
+        $history = new History();
+        $factory = $this->make_assume_role_factory([
+            'assumerolearn' => 'arn:aws:iam::123456789012:role/half',
+            'accesskeyid'   => 'AKIAHALF',
+        ], $history);
+
+        putenv('AWS_ACCESS_KEY_ID=AKIAFROMENV');
+        putenv('AWS_SECRET_ACCESS_KEY=envsecret');
+        try {
+            $factory->resolve();
+        } finally {
+            putenv('AWS_ACCESS_KEY_ID');
+            putenv('AWS_SECRET_ACCESS_KEY');
+        }
+        $this->assertSame('AKIAFROMENV', $this->signing_key_id($history));
+    }
+
+    /**
+     * Changing the base access key ID does not reuse the cached session; the secret is not in the key.
+     */
+    public function test_assume_role_cache_key_differs_by_base_key(): void {
+        $arn = 'arn:aws:iam::123456789012:role/cache-key';
+        $first = new History();
+        $factory = $this->make_assume_role_factory(
+            ['assumerolearn' => $arn, 'accesskeyid' => 'AKIAONE', 'secretaccesskey' => 's1'],
+            $first
+        );
+        $factory->resolve();
+        $this->assertSame(1, $first->count());
+
+        // The same role and base key (even with another secret) reuses the cached session: no STS call.
+        $same = new History();
+        $factory = $this->make_assume_role_factory(
+            ['assumerolearn' => $arn, 'accesskeyid' => 'AKIAONE', 'secretaccesskey' => 'other'],
+            $same
+        );
+        $this->assertSame('ASIASESSION', $factory->resolve());
+        $this->assertSame(0, $same->count());
+
+        // A different base key ID calls STS again, signed with the new key.
+        $second = new History();
+        $factory = $this->make_assume_role_factory(
+            ['assumerolearn' => $arn, 'accesskeyid' => 'AKIATWO', 'secretaccesskey' => 's2'],
+            $second
+        );
+        $factory->resolve();
+        $this->assertSame('AKIATWO', $this->signing_key_id($second));
+    }
+
+    /**
+     * The speech clients get the same assume-role credentials as the runtime clients.
+     */
+    public function test_speech_client_factory_shares_assume_role_credentials(): void {
+        $provider = $this->make_provider([
+            'authmode'        => 'assume_role',
+            'assumerolearn'   => 'arn:aws:iam::123456789012:role/speech',
+            'accesskeyid'     => 'AKIASPEECH',
+            'secretaccesskey' => 'speechsecret',
+            'region'          => 'us-east-1',
+        ]);
+        $factory = new speech_client_factory($provider);
+        $method = new \ReflectionMethod($factory, 'build_base_credentials');
+        $base = $method->invoke($factory);
+        $this->assertInstanceOf(Credentials::class, $base);
+        $this->assertSame('AKIASPEECH', $base->getAccessKeyId());
     }
 }

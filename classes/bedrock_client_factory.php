@@ -19,6 +19,7 @@ namespace aiprovider_awsbr;
 use Aws\BedrockRuntime\BedrockRuntimeClient;
 use Aws\Bedrock\BedrockClient;
 use Aws\Credentials\Credentials;
+use Aws\Credentials\CredentialProvider;
 use Aws\Credentials\InstanceProfileProvider;
 use Aws\Credentials\AssumeRoleCredentialProvider;
 use Aws\Sts\StsClient;
@@ -31,8 +32,11 @@ use Psr\Http\Message\RequestInterface;
  * Credential modes:
  *  - static       : access key ID + secret access key stored in admin settings.
  *  - instance_role: IAM instance/task role via IMDSv2 (recommended for EC2/ECS).
- *  - assume_role  : wraps either above with STS AssumeRole; session credentials
- *                   are cached in MUC to avoid hammering STS.
+ *  - assume_role  : STS AssumeRole. The call is signed with the instance's access key ID
+ *                   and secret when both are set (a server outside AWS), otherwise with
+ *                   the SDK default credential chain (environment variables, shared
+ *                   config/profile, ECS or EC2 role). Session credentials are cached in
+ *                   MUC to avoid hammering STS.
  *
  * Proxy support mirrors the behaviour of the now-deprecated \core\aws\aws_helper but
  * is reimplemented here directly so we do not trigger deprecation notices.
@@ -202,20 +206,29 @@ class bedrock_client_factory {
     }
 
     /**
-     * Build an AssumeRoleCredentialProvider, wrapping the configured base credentials.
+     * Build an AssumeRoleCredentialProvider, wrapping the base credentials.
+     *
+     * The sts:AssumeRole call is signed with the access key ID and secret set on the
+     * instance when both are present, so a server outside AWS can use this mode.
+     * Otherwise it is signed with the SDK default credential chain (environment
+     * variables, shared config/profile, then an ECS or EC2 role).
      *
      * Session credentials are cached in MUC with a TTL that expires 5 minutes before the
      * session itself (so we always renew before AWS rejects a stale token).
      *
-     * @return callable
+     * @return callable|\Aws\Credentials\CredentialsInterface Session credentials when resolved or cached, otherwise
+     *                                                          a lazy provider that resolves on first use.
      */
-    protected function build_assume_role_provider(): callable {
+    protected function build_assume_role_provider(): callable|\Aws\Credentials\CredentialsInterface {
         $rolearn     = $this->provider->config['assumerolearn'] ?? '';
         $sessionname = $this->provider->config['assumerolesessionname'] ?? 'moodle-bedrock';
         $region      = $this->provider->config['region'] ?? 'us-east-1';
 
         // Check MUC for a valid cached session first.
-        $cachekey    = self::CACHE_KEY_PREFIX . md5($rolearn . $sessionname);
+        // The base access key ID is part of the key (never the secret), so changing the
+        // base credentials does not reuse a session obtained with the old ones.
+        $basekeyid   = trim((string) ($this->provider->config['accesskeyid'] ?? ''));
+        $cachekey    = self::CACHE_KEY_PREFIX . md5($rolearn . "\n" . $sessionname . "\n" . $basekeyid);
         $cache       = \cache::make(self::CACHE_AREA, 'credentials');
         $cachedcreds = $cache->get($cachekey);
 
@@ -231,19 +244,7 @@ class bedrock_client_factory {
             }
         }
 
-        // Determine the base credentials to use when calling STS.
-        $basecreds = ($this->provider->config['authmode'] ?? 'instance_role') === 'static'
-            ? new Credentials(
-                key:    $this->provider->config['accesskeyid'] ?? '',
-                secret: $this->provider->config['secretaccesskey'] ?? '',
-            )
-            : new InstanceProfileProvider();
-
-        $stsclient = new StsClient([
-            'region'      => $region,
-            'version'     => 'latest',
-            'credentials' => $basecreds,
-        ]);
+        $stsclient = $this->create_sts_client($region, $this->build_base_credentials());
 
         $provider = new AssumeRoleCredentialProvider([
             'client'      => $stsclient,
@@ -276,6 +277,38 @@ class bedrock_client_factory {
             // If resolution fails, return the lazy provider — the SDK will retry on first use.
             return $memoized;
         }
+    }
+
+    /**
+     * The credentials that sign the sts:AssumeRole call.
+     *
+     * @return callable|\Aws\Credentials\CredentialsInterface The instance's access key ID and secret when both
+     *                                                          are set, otherwise the SDK default credential chain.
+     */
+    protected function build_base_credentials(): callable|\Aws\Credentials\CredentialsInterface {
+        $key    = trim((string) ($this->provider->config['accesskeyid'] ?? ''));
+        $secret = trim((string) ($this->provider->config['secretaccesskey'] ?? ''));
+        if ($key !== '' && $secret !== '') {
+            return new Credentials(key: $key, secret: $secret);
+        }
+        return CredentialProvider::defaultProvider();
+    }
+
+    /**
+     * Create the STS client that makes the AssumeRole call.
+     *
+     * Separate so that tests can substitute a mocked handler.
+     *
+     * @param string $region AWS region of the STS endpoint.
+     * @param callable|\Aws\Credentials\CredentialsInterface $credentials The base credentials.
+     * @return StsClient
+     */
+    protected function create_sts_client(string $region, callable|\Aws\Credentials\CredentialsInterface $credentials): StsClient {
+        return new StsClient([
+            'region'      => $region,
+            'version'     => 'latest',
+            'credentials' => $credentials,
+        ]);
     }
 
     /**

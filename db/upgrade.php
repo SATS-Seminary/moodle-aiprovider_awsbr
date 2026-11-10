@@ -104,5 +104,21 @@ function xmldb_aiprovider_awsbr_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026111000, 'aiprovider', 'awsbr');
     }
 
+    if ($oldversion < 2026111001) {
+        // The site-wide settings page is gone; delete the values it stored, which may
+        // include an AWS access key and secret.
+        aiprovider_awsbr_remove_site_settings();
+
+        upgrade_plugin_savepoint(true, 2026111001, 'aiprovider', 'awsbr');
+    }
+
+    if ($oldversion < 2026111002) {
+        // AWS retired Nova Canvas and Titan Image Generator v2: instances still set to one of
+        // them use the first available model, and every instance gets the image region setting.
+        aiprovider_awsbr_replace_retired_image_models();
+
+        upgrade_plugin_savepoint(true, 2026111002, 'aiprovider', 'awsbr');
+    }
+
     return true;
 }

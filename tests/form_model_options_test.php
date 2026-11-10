@@ -184,7 +184,7 @@ final class form_model_options_test extends \advanced_testcase {
         $narrow = $this->make_instance('us-east-1', [], "stability.sd3-5-large-v1:0|SD\n");
         $this->assertSame(['stability.sd3-5-large-v1:0'], $this->model_options($action, (int) $narrow->id));
         // Without a provider id: the default model only, and no AWS call.
-        $this->assertSame(['amazon.nova-canvas-v1:0'], $this->model_options($action, 0));
+        $this->assertSame(['stability.stable-image-core-v1:1'], $this->model_options($action, 0));
     }
 
     /**
@@ -194,7 +194,7 @@ final class form_model_options_test extends \advanced_testcase {
         $action = \core_ai\aiactions\generate_image::class;
         $this->assertContains($action, provider::get_action_list());
         $this->assertSame(
-            ['model' => 'amazon.nova-canvas-v1:0', 'negativeprompt' => '', 'cfgscale' => ''],
+            ['model' => 'stability.stable-image-core-v1:1', 'imageregion' => '', 'negativeprompt' => '', 'cfgscale' => ''],
             provider::get_action_setting_defaults($action)
         );
     }
@@ -215,5 +215,123 @@ final class form_model_options_test extends \advanced_testcase {
             $this->assertArrayHasKey('cfgscale', $validate(['cfgscale' => $bad]), $bad);
         }
         $this->assertArrayHasKey('negativeprompt', $validate(['negativeprompt' => str_repeat('x', 513)]));
+    }
+
+    /**
+     * The image generation region is optional and must look like an AWS region code.
+     */
+    public function test_generate_image_form_region_validation(): void {
+        $form = provider::get_action_settings(
+            \core_ai\aiactions\generate_image::class,
+            ['providerid' => 0, 'providername' => 'aiprovider_awsbr']
+        );
+        foreach (['', 'us-west-2', 'eu-central-1', 'us-gov-west-1', ' ap-southeast-2 '] as $good) {
+            $this->assertArrayNotHasKey('imageregion', $form->validation(['imageregion' => $good], []), $good);
+        }
+        foreach (['us_west_2', 'uswest2', 'US-WEST-2', 'us-west-22', 'us-west', 'https://x.example'] as $bad) {
+            $this->assertArrayHasKey('imageregion', $form->validation(['imageregion' => $bad], []), $bad);
+        }
+    }
+
+    /**
+     * The generate_image form built for an instance, saved region and catalog.
+     *
+     * @param int $providerid The instance id.
+     * @param string $region The saved image region.
+     * @param \aiprovider_awsbr\model_catalog|null $catalog The catalog to use (null = the instance's own).
+     * @return \MoodleQuickForm
+     */
+    private function image_form(
+        int $providerid,
+        string $region,
+        ?\aiprovider_awsbr\model_catalog $catalog = null,
+    ): \MoodleQuickForm {
+        $customdata = ['providerid' => $providerid, 'providername' => 'aiprovider_awsbr',
+            'actionconfig' => ['settings' => ['imageregion' => $region]]];
+        if ($catalog !== null) {
+            $customdata['catalog'] = $catalog;
+        }
+        $form = provider::get_action_settings(\core_ai\aiactions\generate_image::class, $customdata);
+        return (new \ReflectionProperty(\moodleform::class, '_form'))->getValue($form);
+    }
+
+    /**
+     * A catalog whose control client answers from a queue (no AWS call).
+     *
+     * @param provider $provider The instance.
+     * @param array $results The queued results and exceptions.
+     * @return \aiprovider_awsbr\model_catalog
+     */
+    private function mock_catalog(provider $provider, array $results): \aiprovider_awsbr\model_catalog {
+        return new class ($provider, new \Aws\MockHandler($results)) extends \aiprovider_awsbr\model_catalog {
+            /**
+             * Build a catalog whose control client uses the mock handler.
+             *
+             * @param provider $provider The instance.
+             * @param \Aws\MockHandler $mockhandler The mock handler.
+             */
+            public function __construct(
+                provider $provider,
+                /** @var \Aws\MockHandler The mock handler. */
+                private \Aws\MockHandler $mockhandler,
+            ) {
+                parent::__construct($provider);
+            }
+
+            #[\Override]
+            protected function control_client(string $region): \Aws\Bedrock\BedrockClient {
+                return new \Aws\Bedrock\BedrockClient([
+                    'region' => $region, 'version' => 'latest', 'credentials' => ['key' => 'A', 'secret' => 'S'],
+                    'retries' => 0, 'handler' => $this->mockhandler,
+                ]);
+            }
+        };
+    }
+
+    /**
+     * The notice is hidden when models exist, and shown, differently, when the region is empty or loading failed.
+     */
+    public function test_generate_image_form_notices(): void {
+        $this->resetAfterTest();
+        $eu = $this->make_instance('eu-west-1', []);
+        $id = (int) $eu->id;
+
+        // Models cached for the instance's region: no notice.
+        $this->assertFalse($this->image_form($id, '')->elementExists('imagemodelsnotice'));
+
+        // A region that has no models: the empty notice, naming the region and the AWS page.
+        $catalog = $this->mock_catalog($eu, [
+            new \Aws\Result(['modelSummaries' => []]),
+            new \Aws\Result(['inferenceProfileSummaries' => []]),
+        ]);
+        $form = $this->image_form($id, 'eu-central-1', $catalog);
+        $notice = $form->getElement('imagemodelsnotice')->toHtml();
+        $this->assertStringContainsString('alert-warning', $notice);
+        $this->assertStringContainsString('eu-central-1', $notice);
+        $this->assertStringContainsString('models-region-compatibility.html', $notice);
+        $this->assertStringContainsString('no text-to-image models', $notice);
+        // No model that does not exist is offered.
+        $this->assertSame([''], $this->model_options_of($form));
+
+        // The list cannot be loaded: a different notice, and the default model is offered.
+        $catalog = $this->mock_catalog($eu, [
+            new \Aws\Exception\AwsException('denied', new \Aws\Command('ListFoundationModels')),
+        ]);
+        $form = $this->image_form($id, 'eu-north-1', $catalog);
+        $notice = $form->getElement('imagemodelsnotice')->toHtml();
+        $this->assertStringContainsString('bedrock:ListFoundationModels', $notice);
+        $this->assertStringNotContainsString('no text-to-image models', $notice);
+        $this->assertSame(['stability.stable-image-core-v1:1'], $this->model_options_of($form));
+        $this->assertDebuggingCalled();
+    }
+
+    /**
+     * The option values of the model select of a built form.
+     *
+     * @param \MoodleQuickForm $form The form.
+     * @return string[]
+     */
+    private function model_options_of(\MoodleQuickForm $form): array {
+        return array_map(static fn($option) => $option['attr']['value'], $form->getElement('model')->_options);
     }
 }

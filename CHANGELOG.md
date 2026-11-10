@@ -4,20 +4,29 @@ All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
 ## 1.7.0 — 2026-11-10
 - New: the core `generate_image` action. Image models are called with
-  `InvokeModel`, with request formats for Amazon Nova Canvas, Amazon Titan Image
-  Generator and Stability AI (Stable Diffusion 3 / 3.5 Large, Stable Image Core
-  and Ultra); any other model fails with `UnsupportedModel`. One image is
+  `InvokeModel`, with request formats for Stability AI (Stable Diffusion 3.5
+  Large, Stable Image Core and Ultra) and, unused, Amazon Nova Canvas and Titan
+  Image Generator (retired by AWS, never offered or defaulted); geo and global
+  prefixes (`us.`, `eu.`, `global.` ...) are recognised, and inference profiles
+  of text-to-image models are listed; any other model fails with `UnsupportedModel`. One image is
   requested per call. Core's `quality` (`hd` becomes `premium`) and
   `aspectratio` choose the size, and the core `style` option is ignored because
   Bedrock has no equivalent. The image is validated, given Moodle's AI watermark
   and stored in the user's draft area. A request or result blocked by the
   model's content filters fails with `ContentFiltered` (400) and a message that
   does not repeat the prompt. Per-action settings: model (default
-  `amazon.nova-canvas-v1:0`), negative prompt and CFG scale. Throttling retries
-  once on the fallback region, as for embeddings. Image calls use a 300 second
+  `stability.stable-image-core-v1:1`), image generation region (empty = the
+  instance's region; text-to-image models exist only in a few regions, so image
+  prompts are processed there), negative prompt and CFG scale. The settings show
+  a warning when the region has no text-to-image models, and another when the
+  list could not be loaded (the dropdown then never offers a missing model).
+  Throttling retries once on the fallback region, as for embeddings, but only
+  when no image generation region is set. Image calls use a 300 second
   read timeout, set through the client factory for these calls only. The upgrade
   adds the action to existing instances **disabled**, because image generation
-  costs money: enable it in Configure actions. New instances have it enabled
+  costs money: enable it in Configure actions. Instances that already
+  ran the earlier 1.7.0 build have a retired Nova Canvas or Titan model reset to
+  the first available model, and get the empty image region. New instances have it enabled
   like the other actions.
 - The model lists are per provider instance. This fixes the model dropdowns
   reading a table that does not exist and the site-wide setting, so they showed
@@ -45,6 +54,19 @@ All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 - `models.php` and `cli/list_models.php` take a `providerid` to browse a
   specific instance; the settings form links to it.
 - A README was added.
+- Removed the site-wide settings page. All configuration is on provider
+  instances (core's provider form supplies the rate limits). The upgrade deletes
+  the values the page stored, including any AWS access key and secret.
+- Assume STS role works off AWS: when an access key ID and secret are set on the
+  instance they sign the `sts:AssumeRole` call (the form now shows those fields
+  for this mode); otherwise the SDK default credential chain is used
+  (environment variables, shared config/profile, ECS or EC2 role), not the EC2
+  instance profile alone. The cached session is keyed by the base access key ID.
+  The speech services get the same behaviour.
+- Fixed the pre-filled Claude Opus 4.5 inference profile ID to
+  `global.anthropic.claude-opus-4-5-20251101-v1:0`.
+- Removed the unused `admin_setting_awsregion` class, which only the removed settings page used.
+- CI now fails on code-style and PHPDoc warnings.
 
 ## 1.6.1 — 2026-11-04
 - `grade_response` works with the older AWS SDK that Moodle 5.0 ships (3.342).

@@ -355,6 +355,79 @@ final class process_generate_image_test extends \advanced_testcase {
     }
 
     /**
+     * Geo and global prefixes are stripped before matching; editing models stay excluded.
+     */
+    public function test_get_family_with_geo_prefix(): void {
+        foreach (['us.', 'eu.', 'apac.', 'global.', 'us-gov.', 'jp.', 'au.', 'ca.'] as $prefix) {
+            $core = $prefix . 'stability.stable-image-core-v1:1';
+            $this->assertSame('stability', process_generate_image::get_family($core), $prefix);
+            $this->assertSame('stability', process_generate_image::get_family($prefix . 'stability.sd3-5-large-v1:0'), $prefix);
+            $this->assertSame('nova', process_generate_image::get_family($prefix . 'amazon.nova-canvas-v1:0'), $prefix);
+            $this->assertSame('titan', process_generate_image::get_family($prefix . 'amazon.titan-image-generator-v2:0'), $prefix);
+            $this->assertNull(process_generate_image::get_family($prefix . 'stability.stable-image-inpaint-v1:0'), $prefix);
+            $this->assertNull(process_generate_image::get_family($prefix . 'stability.stable-conservative-upscale-v1:0'), $prefix);
+        }
+        $this->assertNull(process_generate_image::get_family('xx.stability.stable-image-core-v1:1'));
+    }
+
+    /**
+     * A geo-prefixed model id is sent to AWS unchanged, in the image region.
+     */
+    public function test_prefixed_model_is_invoked_with_its_full_id(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+        $provider = $this->make_provider('us.stability.stable-image-core-v1:1', ['imageregion' => 'us-west-2']);
+        $mock = new MockHandler([self::fake_result(['images' => [self::png_base64()], 'finish_reasons' => [null]])]);
+        $regions = [];
+        $response = $this->make_processor($provider, $this->make_action(), $mock, $regions)->process();
+        $this->assertTrue($response->get_success(), $response->get_errormessage());
+        $this->assertSame('us.stability.stable-image-core-v1:1', $mock->getLastCommand()['modelId']);
+    }
+
+    /**
+     * An image region sends the call there; an empty one uses the instance's region.
+     */
+    public function test_image_region_selects_the_call_region(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+        $provider = $this->make_provider('stability.stable-image-core-v1:1', ['imageregion' => ' us-west-2 ']);
+        $mock = new MockHandler([self::fake_result(['images' => [self::png_base64()], 'finish_reasons' => [null]])]);
+        $regions = [];
+        $response = $this->make_processor($provider, $this->make_action(), $mock, $regions)->process();
+        $this->assertTrue($response->get_success(), $response->get_errormessage());
+        $this->assertSame(['us-west-2'], $regions);
+
+        $provider = $this->make_provider('stability.stable-image-core-v1:1', ['imageregion' => '']);
+        $mock = new MockHandler([self::fake_result(['images' => [self::png_base64()], 'finish_reasons' => [null]])]);
+        $regions = [];
+        $this->make_processor($provider, $this->make_action(), $mock, $regions)->process();
+        $this->assertSame([null], $regions);
+    }
+
+    /**
+     * With an image region the fallback region is not tried: a throttle is a 429 after one call.
+     */
+    public function test_fallback_region_is_not_used_with_an_image_region(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+        $provider = $this->make_provider('stability.stable-image-core-v1:1', ['imageregion' => 'us-west-2'], 'eu-west-1');
+        $mock = new MockHandler([self::aws_error('ThrottlingException')]);
+        $regions = [];
+        $response = $this->make_processor($provider, $this->make_action(), $mock, $regions)->process();
+        $this->assertSame(429, $response->get_errorcode());
+        $this->assertSame(['us-west-2'], $regions);
+    }
+
+    /**
+     * The no-model error points to the image generation region setting.
+     */
+    public function test_no_model_message_mentions_the_image_region(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+        $mock = new MockHandler([]);
+        $regions = [];
+        $response = $this->make_processor($this->make_provider(''), $this->make_action(), $mock, $regions, [])->process();
+        $this->assertSame('NoImageModel', $response->get_error());
+        $this->assertStringContainsString('image generation region', $response->get_errormessage());
+    }
+
+    /**
      * A Nova Canvas call stores a valid, watermarked image in the user's draft area.
      */
     public function test_process_success_creates_draft_file(): void {

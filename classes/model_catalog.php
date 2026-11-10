@@ -38,7 +38,15 @@ class model_catalog {
     /** Default embedding model, offered when the live list cannot be loaded. */
     public const DEFAULT_EMBEDDING_MODEL = 'amazon.titan-embed-text-v2:0';
     /** Default image model, offered when the live list cannot be loaded. */
-    public const DEFAULT_IMAGE_MODEL = 'amazon.nova-canvas-v1:0';
+    public const DEFAULT_IMAGE_MODEL = 'stability.stable-image-core-v1:1';
+    /** The list was loaded and holds models. */
+    public const STATE_OK = 'ok';
+    /** The list was loaded and the region has no models of this kind. */
+    public const STATE_EMPTY = 'empty';
+    /** The list could not be loaded (credentials, permission or network problem). */
+    public const STATE_ERROR = 'error';
+    /** Pattern of the geo and global prefixes of inference profile ids (us., eu., global. ...). */
+    private const GEO_PREFIX_PATTERN = '/^(?:us-gov|us|eu|apac|global|jp|au|ca)\./';
     /** ListFoundationModels output modality of embedding models. */
     public const MODALITY_EMBEDDING = 'EMBEDDING';
     /** ListFoundationModels output modality of image models. */
@@ -65,6 +73,9 @@ class model_catalog {
         'stability.stable-image-core-',
         'stability.stable-image-ultra-',
     ];
+
+    /** @var array<string, array> Results of foundation_result() already loaded by this object, by cache key. */
+    private array $loaded = [];
 
     /**
      * Build a catalog bound to a specific Bedrock provider.
@@ -188,6 +199,7 @@ class model_catalog {
      * @return bool
      */
     private static function is_image_id(string $id): bool {
+        $id = self::strip_geo_prefix($id);
         return str_starts_with($id, 'amazon.nova-canvas')
             || str_starts_with($id, 'amazon.titan-image')
             || str_starts_with($id, 'stability.');
@@ -210,7 +222,19 @@ class model_catalog {
      * @return bool
      */
     public static function is_supported_image_id(string $id): bool {
-        return self::has_prefix($id, self::IMAGE_PREFIXES);
+        return self::has_prefix(self::strip_geo_prefix($id), self::IMAGE_PREFIXES);
+    }
+
+    /**
+     * Remove a geo or global prefix (us., eu., apac., global., us-gov., jp., au., ca.) from a model id.
+     *
+     * Cross-Region inference profile ids are the foundation model id with such a prefix.
+     *
+     * @param string $id The model or inference profile id.
+     * @return string The id without the prefix.
+     */
+    public static function strip_geo_prefix(string $id): string {
+        return preg_replace(self::GEO_PREFIX_PATTERN, '', $id) ?? $id;
     }
 
     /**
@@ -257,16 +281,30 @@ class model_catalog {
     }
 
     /**
-     * The image models this provider instance allows, as id => label.
+     * The image models this provider instance allows in an image region, as id => label.
      *
-     * Image models are on-demand foundation models (output modality IMAGE).
-     * Only models process_generate_image can call are offered. See
-     * {@see foundation_options()} for narrowing and fallback.
+     * Image models are on-demand foundation models (output modality IMAGE), plus
+     * any inference profile of a supported text-to-image model. Only models
+     * process_generate_image can call are offered. See {@see foundation_options()}
+     * for narrowing and fallback. When the region has no such models the result is
+     * empty (see {@see image_state()}); the default model is offered only when the
+     * list could not be loaded.
      *
+     * @param string $region The image generation region ('' = the instance's region).
      * @return array Map of model id => label.
      */
-    public function image_options(): array {
-        return $this->foundation_options(self::MODALITY_IMAGE);
+    public function image_options(string $region = ''): array {
+        return $this->foundation_options(self::MODALITY_IMAGE, $region);
+    }
+
+    /**
+     * Whether the image model list of a region loaded, was empty, or could not be loaded.
+     *
+     * @param string $region The image generation region ('' = the instance's region).
+     * @return string One of the STATE_ constants.
+     */
+    public function image_state(string $region = ''): string {
+        return $this->foundation_result(self::MODALITY_IMAGE, false, $region)['state'];
     }
 
     /**
@@ -276,19 +314,25 @@ class model_catalog {
      * using only the lines that are supported models of this modality; if there
      * are none, the whole list is offered. If the list cannot be loaded, the
      * modality's default model plus the supported lines of the setting are
-     * returned.
+     * returned. If it loaded and is empty, the result is empty: no model is
+     * offered that does not exist in the region.
      *
      * @param string $modality MODALITY_EMBEDDING or MODALITY_IMAGE.
+     * @param string $region The region override ('' = the instance's region).
      * @return array Map of model id => label.
      */
-    protected function foundation_options(string $modality): array {
+    protected function foundation_options(string $modality, string $region = ''): array {
         $allowlist = $this->get_allowlist();
+        $result = $this->foundation_result($modality, false, $region);
         $live = [];
-        foreach ($this->foundation_list($modality) as $m) {
+        foreach ($result['models'] as $m) {
             $live[$m['id']] = ($m['name'] !== '') ? $m['name'] : $m['id'];
         }
 
-        if (empty($live)) {
+        if ($result['state'] === self::STATE_EMPTY) {
+            return [];
+        }
+        if ($result['state'] === self::STATE_ERROR) {
             if ($modality === self::MODALITY_IMAGE) {
                 $options = [self::DEFAULT_IMAGE_MODEL => get_string('action:generate_image:model_default', 'aiprovider_awsbr')];
             } else {
@@ -330,11 +374,37 @@ class model_catalog {
      * Makes no AWS call (and returns an empty array) when there is no provider id.
      *
      * @param int $providerid The provider instance id, 0 when unknown.
+     * @param string $region The image generation region ('' = the instance's region).
      * @return array Map of model id => label.
      */
-    public static function image_options_for_provider_id(int $providerid): array {
+    public static function image_options_for_provider_id(int $providerid, string $region = ''): array {
         $catalog = self::for_provider_id($providerid);
-        return $catalog !== null ? $catalog->image_options() : [];
+        return $catalog !== null ? $catalog->image_options($region) : [];
+    }
+
+    /**
+     * The state of the image model list of a provider instance, for the settings forms.
+     *
+     * Makes no AWS call (and returns STATE_OK) when there is no provider id.
+     *
+     * @param int $providerid The provider instance id, 0 when unknown.
+     * @param string $region The image generation region ('' = the instance's region).
+     * @return string One of the STATE_ constants.
+     */
+    public static function image_state_for_provider_id(int $providerid, string $region = ''): string {
+        $catalog = self::for_provider_id($providerid);
+        return $catalog !== null ? $catalog->image_state($region) : self::STATE_OK;
+    }
+
+    /**
+     * The region image calls go to: the given image region, else the instance's region.
+     *
+     * @param string $region The image generation region ('' = the instance's region).
+     * @return string
+     */
+    public function effective_image_region(string $region = ''): string {
+        $region = trim($region);
+        return $region !== '' ? $region : (string) ($this->provider->config['region'] ?? 'us-east-1');
     }
 
     /**
@@ -348,13 +418,17 @@ class model_catalog {
     }
 
     /**
-     * The cache key of a provider instance's image model list.
+     * The cache key of a provider instance's image model list in an image region.
+     *
+     * Both the provider id and the region are part of the key.
      *
      * @param provider $provider The Bedrock provider.
+     * @param string $region The image generation region ('' = the instance's region).
      * @return string
      */
-    public static function image_cache_key(provider $provider): string {
-        return 'image' . self::cache_key($provider);
+    public static function image_cache_key(provider $provider, string $region = ''): string {
+        $region = trim($region) !== '' ? trim($region) : (string) ($provider->config['region'] ?? 'us-east-1');
+        return 'image_' . (int) $provider->id . '_' . preg_replace('/[^a-z0-9]/i', '', $region);
     }
 
     /**
@@ -368,42 +442,66 @@ class model_catalog {
     }
 
     /**
-     * The on-demand image models of the provider's region that can be called.
+     * The on-demand image models of an image region that can be called.
      *
+     * @param string $region The image generation region ('' = the instance's region).
      * @param bool $refresh Bypass the cache and re-query Bedrock.
      * @return array<int, array{id: string, name: string}>
      */
-    public function image_list(bool $refresh = false): array {
-        return $this->foundation_list(self::MODALITY_IMAGE, $refresh);
+    public function image_list(string $region = '', bool $refresh = false): array {
+        return $this->foundation_result(self::MODALITY_IMAGE, $refresh, $region)['models'];
     }
 
     /**
      * The on-demand foundation models of one output modality, from ListFoundationModels.
-     *
-     * Only model families the plugin's processor for that modality can call are
-     * kept. The result is cached per provider instance and modality; an empty
-     * result is not cached.
      *
      * @param string $modality MODALITY_EMBEDDING or MODALITY_IMAGE.
      * @param bool $refresh Bypass the cache and re-query Bedrock.
      * @return array<int, array{id: string, name: string}>
      */
     protected function foundation_list(string $modality, bool $refresh = false): array {
+        return $this->foundation_result($modality, $refresh)['models'];
+    }
+
+    /**
+     * The on-demand foundation models of one output modality, and whether the list loaded.
+     *
+     * Only model families the plugin's processor for that modality can call are
+     * kept. For images, inference profiles whose id (without its geo prefix) is a
+     * supported text-to-image family are added; failing to list profiles does not
+     * make the result an error. The result is cached per provider instance (and
+     * region, for images); an empty result is not cached.
+     *
+     * The state is STATE_ERROR when ListFoundationModels failed, STATE_EMPTY when it
+     * loaded and the region has no callable models, else STATE_OK.
+     *
+     * @param string $modality MODALITY_EMBEDDING or MODALITY_IMAGE.
+     * @param bool $refresh Bypass the cache and re-query Bedrock.
+     * @param string $region The region override for images ('' = the instance's region).
+     * @return array{models: array<int, array{id: string, name: string}>, state: string}
+     */
+    protected function foundation_result(string $modality, bool $refresh = false, string $region = ''): array {
         $cache = \cache::make(self::CACHE_AREA, self::CACHE_DEF);
-        $key   = $modality === self::MODALITY_IMAGE
-            ? self::image_cache_key($this->provider)
+        $isimage = $modality === self::MODALITY_IMAGE;
+        $region = $isimage ? $this->effective_image_region($region) : (string) ($this->provider->config['region'] ?? 'us-east-1');
+        $key = $isimage
+            ? self::image_cache_key($this->provider, $region)
             : self::embedding_cache_key($this->provider);
         if (!$refresh) {
+            // The same object asks for the state and then the options: load once.
+            if (isset($this->loaded[$key])) {
+                return $this->loaded[$key];
+            }
             $cached = $cache->get($key);
             if (is_array($cached)) {
-                return $cached;
+                return ['models' => $cached, 'state' => empty($cached) ? self::STATE_EMPTY : self::STATE_OK];
             }
         }
 
         $models = [];
         try {
-            $region = (string) ($this->provider->config['region'] ?? 'us-east-1');
-            $resp = $this->control_client($region)->listFoundationModels([
+            $client = $this->control_client($region);
+            $resp = $client->listFoundationModels([
                 'byOutputModality' => $modality,
                 'byInferenceType'  => 'ON_DEMAND',
             ]);
@@ -420,14 +518,54 @@ class model_catalog {
             }
         } catch (\Throwable $e) {
             debugging('model_catalog: ListFoundationModels failed — ' . $e->getMessage(), DEBUG_DEVELOPER);
-            return [];
+            return $this->loaded[$key] = ['models' => [], 'state' => self::STATE_ERROR];
+        }
+        if ($isimage) {
+            $models += $this->image_profiles($client, array_keys($models));
         }
         $models = array_values($models);
         usort($models, static fn($a, $b) => strcmp($a['id'], $b['id']));
         if (!empty($models)) {
             $cache->set($key, $models);
         }
-        return $models;
+        return $this->loaded[$key] = ['models' => $models, 'state' => empty($models) ? self::STATE_EMPTY : self::STATE_OK];
+    }
+
+    /**
+     * The inference profiles of a region whose model is a supported text-to-image family.
+     *
+     * Future cross-region image profiles (us.stability..., global....) appear here
+     * without code changes. Editing models stay out because only the supported
+     * families match. A failure is logged and yields no profiles.
+     *
+     * @param \Aws\Bedrock\BedrockClient $client The control-plane client of the image region.
+     * @param string[] $skip Ids already listed.
+     * @return array<string, array{id: string, name: string}>
+     */
+    private function image_profiles(\Aws\Bedrock\BedrockClient $client, array $skip): array {
+        $found = [];
+        $next = null;
+        try {
+            do {
+                $args = ['maxResults' => 100];
+                if ($next !== null) {
+                    $args['nextToken'] = $next;
+                }
+                $resp = $client->listInferenceProfiles($args);
+                foreach (($resp['inferenceProfileSummaries'] ?? []) as $p) {
+                    $id = (string) ($p['inferenceProfileId'] ?? '');
+                    $status = (string) ($p['status'] ?? 'ACTIVE');
+                    if ($id === '' || $status !== 'ACTIVE' || in_array($id, $skip, true) || !self::is_supported_image_id($id)) {
+                        continue;
+                    }
+                    $found[$id] = ['id' => $id, 'name' => (string) ($p['inferenceProfileName'] ?? $id)];
+                }
+                $next = $resp['nextToken'] ?? null;
+            } while ($next !== null);
+        } catch (\Throwable $e) {
+            debugging('model_catalog: ListInferenceProfiles for images failed — ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+        return $found;
     }
 
     /**

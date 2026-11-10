@@ -23,13 +23,15 @@ defined('MOODLE_INTERNAL') || die();
 require_once(__DIR__ . '/../db/upgradelib.php');
 
 /**
- * Tests for the upgrade step that adds generate_image to existing instances.
+ * Tests for the upgrade steps: adding generate_image to existing instances, and removing the old site settings.
  *
  * @package    aiprovider_awsbr
  * @copyright  2026 South African Theological Seminary (ict@sats.ac.za)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 #[\PHPUnit\Framework\Attributes\CoversFunction('aiprovider_awsbr_add_generate_image_disabled')]
+#[\PHPUnit\Framework\Attributes\CoversFunction('aiprovider_awsbr_replace_retired_image_models')]
+#[\PHPUnit\Framework\Attributes\CoversFunction('aiprovider_awsbr_remove_site_settings')]
 final class upgradelib_test extends \advanced_testcase {
     /**
      * Create an instance, with its action config replaced by the given one.
@@ -85,7 +87,12 @@ final class upgradelib_test extends \advanced_testcase {
         $this->assertSame(1, $changed);
         $config = $this->stored_config($oldid);
         $this->assertSame(
-            ['enabled' => false, 'settings' => ['model' => 'amazon.nova-canvas-v1:0', 'negativeprompt' => '', 'cfgscale' => '']],
+            [
+                'enabled'  => false,
+                'settings' => [
+                    'model' => 'stability.stable-image-core-v1:1', 'imageregion' => '', 'negativeprompt' => '', 'cfgscale' => '',
+                ],
+            ],
             $config[generate_image::class]
         );
         unset($config[generate_image::class]);
@@ -121,5 +128,94 @@ final class upgradelib_test extends \advanced_testcase {
         aiprovider_awsbr_add_generate_image_disabled();
         $this->assertSame([generate_image::class], array_keys($this->stored_config($id)));
         $this->assertFalse($this->stored_config($id)[generate_image::class]['enabled']);
+    }
+
+    /**
+     * The removed settings page's values are deleted, and nothing else is.
+     */
+    public function test_remove_site_settings_deletes_only_the_old_settings(): void {
+        $this->resetAfterTest();
+        $old = [
+            'authmode' => 'static', 'accesskeyid' => 'AKIAEXAMPLE', 'secretaccesskey' => 'topsecret',
+            'assumerolearn' => 'arn:aws:iam::123456789012:role/x', 'assumerolesessionname' => 'moodle-bedrock',
+            'region' => 'eu-west-1', 'fallbackregion' => 'us-east-1', 'availablemodels' => "a|A\nb|B",
+            'enableuserratelimit' => 1, 'userratelimit' => 5, 'enableglobalratelimit' => 1, 'globalratelimit' => 50,
+        ];
+        foreach ($old as $name => $value) {
+            set_config($name, $value, 'aiprovider_awsbr');
+        }
+        // Not a setting of the page: it must survive.
+        set_config('somethingelse', 'keep', 'aiprovider_awsbr');
+        set_config('authmode', 'static', 'aiprovider_openai');
+        $version = get_config('aiprovider_awsbr', 'version');
+        $this->assertNotEmpty($version);
+
+        $this->assertSame(12, aiprovider_awsbr_remove_site_settings());
+
+        foreach (array_keys($old) as $name) {
+            $this->assertFalse(get_config('aiprovider_awsbr', $name), $name);
+        }
+        $this->assertSame('keep', get_config('aiprovider_awsbr', 'somethingelse'));
+        $this->assertSame('static', get_config('aiprovider_openai', 'authmode'));
+        $this->assertSame($version, get_config('aiprovider_awsbr', 'version'));
+
+        // Repeatable, and a site that never had the values is fine.
+        $this->assertSame(0, aiprovider_awsbr_remove_site_settings());
+    }
+
+    /**
+     * Retired models are reset to the first available model, imageregion is added, and nothing else changes.
+     */
+    public function test_replace_retired_image_models(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $text = [\core_ai\aiactions\generate_text::class => [
+            'enabled' => true, 'settings' => ['model' => 'amazon.nova-canvas-v1:0'],
+        ]];
+        $nova = $this->make_instance('nova', $text + [generate_image::class => [
+            'enabled' => true, 'settings' => ['model' => 'amazon.nova-canvas-v1:0', 'negativeprompt' => 'x', 'cfgscale' => '5'],
+        ]]);
+        $titan = $this->make_instance('titan', [generate_image::class => [
+            'enabled' => false, 'settings' => ['model' => 'amazon.titan-image-generator-v2:0', 'imageregion' => 'us-west-2'],
+        ]]);
+        $sd = $this->make_instance('sd', [generate_image::class => [
+            'enabled' => true, 'settings' => ['model' => 'stability.sd3-5-large-v1:0'],
+        ]]);
+        $done = $this->make_instance('done', [generate_image::class => [
+            'enabled' => true, 'settings' => ['model' => 'stability.stable-image-core-v1:1', 'imageregion' => 'us-west-2'],
+        ]]);
+        $none = $this->make_instance('none', $text);
+        $beforedone = $this->stored_config($done);
+        $beforenone = $this->stored_config($none);
+        $other = $DB->insert_record('ai_providers', (object) [
+            'name' => 'other', 'provider' => 'aiprovider_openai\provider', 'enabled' => 1,
+            'config' => '{}', 'actionconfig' => '{"x":1}',
+        ]);
+
+        $this->assertSame(3, aiprovider_awsbr_replace_retired_image_models());
+
+        $config = $this->stored_config($nova);
+        $this->assertSame(
+            ['enabled' => true, 'settings' => ['model' => '', 'negativeprompt' => 'x', 'cfgscale' => '5', 'imageregion' => '']],
+            $config[generate_image::class]
+        );
+        $this->assertSame($text[\core_ai\aiactions\generate_text::class], $config[\core_ai\aiactions\generate_text::class]);
+        // Titan: model reset, the existing region and the disabled flag are kept.
+        $this->assertSame(
+            ['enabled' => false, 'settings' => ['model' => '', 'imageregion' => 'us-west-2']],
+            $this->stored_config($titan)[generate_image::class]
+        );
+        // A supported model stays; the region is added.
+        $this->assertSame(
+            ['enabled' => true, 'settings' => ['model' => 'stability.sd3-5-large-v1:0', 'imageregion' => '']],
+            $this->stored_config($sd)[generate_image::class]
+        );
+        // Nothing to change, no generate_image action, and other providers: untouched.
+        $this->assertSame($beforedone, $this->stored_config($done));
+        $this->assertSame($beforenone, $this->stored_config($none));
+        $this->assertSame('{"x":1}', $DB->get_field('ai_providers', 'actionconfig', ['id' => $other]));
+
+        // Repeatable.
+        $this->assertSame(0, aiprovider_awsbr_replace_retired_image_models());
     }
 }

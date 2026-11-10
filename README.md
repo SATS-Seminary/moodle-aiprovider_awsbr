@@ -58,11 +58,21 @@ AWS account.
 | Bedrock API key (bearer token) | You want the simplest setup, or a quick trial. Generate a long-term key in the Bedrock console and paste it in. It is sent as an `Authorization: Bearer` header. Cannot be used for the speech services. |
 | Static access key + secret | You have an IAM user with an access key. Works for Bedrock and for speech. Suits servers outside AWS. |
 | IAM instance role | Moodle runs on EC2 or ECS and the instance or task has an IAM role. No secret is stored in Moodle. This is the best choice in production on AWS. |
-| Assume STS role | The Moodle server's own identity should assume another role (for example one in a different AWS account) before calling Bedrock. Set the role ARN and, optionally, a session name (default `moodle-bedrock`). |
+| Assume STS role | Moodle should assume another role (for example one in a different AWS account) before calling Bedrock. Set the role ARN and, optionally, a session name (default `moodle-bedrock`). Works on AWS and off it, see below. |
 
-With "Assume STS role" the plugin signs the `sts:AssumeRole` call with the
-server's instance profile credentials. The temporary credentials are cached
-until shortly before they expire.
+With "Assume STS role" the `sts:AssumeRole` call is signed with the base
+credentials:
+
+- If you fill in the access key ID and secret access key on the instance, they
+  sign the call. Use this on a server outside AWS.
+- If you leave them blank, the AWS SDK default credential chain signs it: the
+  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables, the shared
+  credentials file or profile, then an ECS task role or EC2 instance profile.
+
+The temporary credentials are cached until shortly before they expire, per role,
+session name and base access key ID, so changing the base access key does not
+reuse an old session. The speech services (Polly, Transcribe, S3) use the same
+credentials.
 
 Moodle saves provider settings as plain text (JSON) in the database. An API key
 or secret access key is therefore not encrypted at rest, and anyone with access
@@ -142,10 +152,11 @@ Grant only what you use. Replace the account ID, bucket name and role ARN.
   and `bedrock:ListFoundationModels` fills the embedding-model and
   image-model dropdowns. Without them the plugin falls back to the textarea
   (see Models).
-- Image models: `InvokeModel` also covers `generate_image`. Amazon Nova Canvas,
-  Amazon Titan Image Generator and the Stability AI models are not enabled by
-  default: request access to each in the Bedrock console (in the instance's
-  region) before using it, or calls fail with `AccessDeniedException`.
+- Image models: `InvokeModel` also covers `generate_image`. Stability AI models
+  are not enabled by default: request access to each in the Bedrock console (in
+  the image generation region) before using it, or calls fail with
+  `AccessDeniedException`. `bedrock:ListFoundationModels` and
+  `bedrock:ListInferenceProfiles` (in that region) fill the image-model dropdown.
 - Assume role: the `sts:AssumeRole` statement goes on the identity Moodle
   runs as. The role being assumed needs the Bedrock (and speech) permissions
   above, and its trust policy must allow the Moodle identity.
@@ -171,15 +182,18 @@ instance's credentials and cached:
   invokable inference profiles, from Bedrock `ListInferenceProfiles`.
 - Embedding models (`embed_text`): the instance's on-demand embedding models,
   from Bedrock `ListFoundationModels` (output modality EMBEDDING).
-- Image models (`generate_image`): the instance's on-demand image models, from
-  Bedrock `ListFoundationModels` (output modality IMAGE).
+- Image models (`generate_image`): the on-demand image models of the image
+  generation region (the instance's region when that is empty), from Bedrock
+  `ListFoundationModels` (output modality IMAGE), plus any inference profile
+  (`ListInferenceProfiles`) of a supported text-to-image model.
 
 The embedding and image lists offer only the model families the plugin can
 call: Titan text embeddings (`amazon.titan-embed-text-*`,
 `amazon.titan-embed-g1-text-*`) and Cohere Embed v3 (`cohere.embed-english-v3`,
-`cohere.embed-multilingual-v3`); Nova Canvas, Titan Image Generator and the
-Stability AI text-to-image models (Stable Diffusion 3 / 3.5 Large, Stable Image
-Core and Ultra). Other models Bedrock lists, such as Titan multimodal
+`cohere.embed-multilingual-v3`); the Stability AI text-to-image models (Stable
+Diffusion 3 / 3.5 Large, Stable Image Core and Ultra). Geo and global prefixes
+of profile ids (`us.`, `eu.`, `apac.`, `global.` and so on) are ignored when
+matching families. Other models Bedrock lists, such as Titan multimodal
 embeddings, Cohere Embed v4 or Stability's editing models, are left out.
 
 The optional "Available inference profile IDs" textarea narrows and relabels
@@ -200,9 +214,10 @@ Leave the textarea empty to offer everything.
 If a live list cannot be loaded (wrong credentials, missing permission, network
 error), the plugin falls back to the textarea. For chat models it uses the
 textarea list as it is. For embeddings it offers the Titan v2 default plus any
-textarea lines of a supported embedding family. For images it offers Amazon Nova
-Canvas (`amazon.nova-canvas-v1:0`) plus any textarea lines of a supported image
-family.
+textarea lines of a supported embedding family. For images it offers Stable
+Image Core (`stability.stable-image-core-v1:1`) plus any textarea lines of a
+supported image family. A list that loaded but is empty is different: nothing is
+offered, and the image settings show a notice (see Image generation).
 
 The new-instance form pre-fills the textarea with example Claude 4.5 profile IDs
 and a Titan embeddings line. Clear it if you want every available model offered.
@@ -233,7 +248,8 @@ Enable each action you want on the instance. Settings by action:
 | Top-P | generate, summarise, explain | Default 1.0. |
 | Effort | generate, summarise, explain, grade_response | Model default, Low, Medium or High. |
 | Vector dimensions | embed_text | Titan v2 only: 256, 512 or 1024. |
-| Image model | generate_image | Chosen from the image model list. Default `amazon.nova-canvas-v1:0`. |
+| Image model | generate_image | Chosen from the image model list. Default `stability.stable-image-core-v1:1`. |
+| Image generation region | generate_image | Optional AWS region code for image calls (empty = the instance's region). |
 | Negative prompt | generate_image | Optional, up to 512 characters: what the images must not show. |
 | CFG scale | generate_image | Optional, 1.1 to 10. Nova Canvas and Titan only. |
 
@@ -283,7 +299,7 @@ These settings only affect the developer helpers described below.
 | `generate_text` | Moodle core | Free-form text generation. Supports text input only through core; streaming and image input are available to developers (see below). |
 | `summarise_text` | Moodle core | Summarise text. |
 | `explain_text` | Moodle core | Explain text in simpler terms. |
-| `generate_image` | Moodle core | Generate an image from a text description (Amazon Nova Canvas, Amazon Titan Image Generator, Stability AI). Disabled after an upgrade; see Image generation. |
+| `generate_image` | Moodle core | Generate an image from a text description (Stability AI text-to-image models). Disabled after an upgrade; see Image generation. |
 | `embed_text` | This plugin | Turn text into a vector. For developers. |
 | `grade_response` | This plugin | Get a JSON answer that follows a JSON schema, for example to assess a response against a rubric. For developers. |
 
@@ -299,14 +315,30 @@ text editor's image tool) use it without extra code.
   existing instances disabled; enable it in Site administration > AI > AI
   providers > your instance > Configure actions. New instances have it enabled
   like the other actions, so disable it there if you do not want it.
-- **Models and regions.** Pick the model in the action's settings. The list
-  comes from the instance's region (see Models). Nova Canvas, Titan Image
-  Generator and the Stability AI models are each offered in only some AWS
-  regions, and each needs model access granted in the Bedrock console. See the
-  AWS documentation of Bedrock supported models and regions for where they are
-  available. A second provider instance in another region can serve images.
+- **Models and regions.** Text-to-image models on Bedrock are offered in only
+  a few AWS regions (today us-west-2: Stable Image Core, Stable Image Ultra and
+  Stable Diffusion 3.5 Large; the editing models of other regions need an input
+  image and are not offered). Amazon Nova Canvas and Amazon Titan Image
+  Generator were retired by AWS and are never offered or used as defaults. Check
+  AWS's regional availability page: https://docs.aws.amazon.com/bedrock/latest/userguide/models-region-compatibility.html
+  Each model also needs model access granted in the Bedrock console.
+  The default model is Stable Image Core (`stability.stable-image-core-v1:1`).
   If no model is set, the first model of the list is used.
-- **Settings.** Model, negative prompt (what to keep out of the image) and CFG
+- **Image generation region.** The per-action setting "Image generation
+  region" (for example `us-west-2`) sends image calls, and lists image models,
+  in that region. Empty means the instance's region. This has a data-residency
+  implication: image prompts and generated images are processed in that region,
+  which can differ from the instance's region and country. After changing it,
+  save and reopen the settings to refresh the model list. The instance's
+  fallback region is used for throttled image calls only when no image
+  generation region is set.
+- **Empty and error notices.** When the list loaded but the region has no
+  text-to-image models, the settings show a warning that names the region and
+  suggests another image generation region, and the dropdown offers no model.
+  When the list could not be loaded (credentials, or a missing
+  `bedrock:ListFoundationModels` permission), a different warning is shown and
+  the dropdown falls back to the default model plus the textarea lines.
+- **Settings.** Model, image generation region, negative prompt (what to keep out of the image) and CFG
   scale (how closely Nova Canvas and Titan follow the prompt). There is no seed
   setting, because a fixed seed would return the same image every time.
 - **Quality and shape.** The person generating the image chooses quality and
@@ -532,7 +564,7 @@ $voices = $speech->list_voices('en-US', 'generative'); // ['voices' => [id => na
 
 Data sent to AWS: the prompt text (including the system instruction and any
 context the calling feature adds), the description of an image to generate, any
-attached image, and the model's generated reply or image travel to Amazon Bedrock in the instance's region. Cross-Region
+attached image, and the model's generated reply or image travel to Amazon Bedrock in the instance's region (image requests: the image generation region, if set). Cross-Region
 inference profiles may process requests in other AWS Regions. Speech helpers
 send text, audio and media files to Polly, Transcribe and your S3 bucket. Review
 AWS's data handling terms for the services and regions you use.

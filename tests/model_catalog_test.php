@@ -401,7 +401,7 @@ final class model_catalog_test extends \advanced_testcase {
             'stability.stable-conservative-upscale-v1:0' => 'Upscale',
             'stability.sd3-5-large-v1:0' => 'SD3.5 Large',
             'amazon.titan-embed-image-v1' => 'Not an image generator',
-        ])]);
+        ]), new \Aws\Result(['inferenceProfileSummaries' => []])]);
         $catalog = $this->catalog_with_mock($provider, $mock);
 
         $options = $catalog->image_options();
@@ -413,9 +413,7 @@ final class model_catalog_test extends \advanced_testcase {
             'stability.stable-image-ultra-v1:1' => 'Stable Image Ultra',
         ], $options);
         $command = $mock->getLastCommand();
-        $this->assertSame('ListFoundationModels', $command->getName());
-        $this->assertSame('IMAGE', $command['byOutputModality']);
-        $this->assertSame('ON_DEMAND', $command['byInferenceType']);
+        $this->assertSame('ListInferenceProfiles', $command->getName());
         // Cached per instance, under its own key.
         $this->assertSame($options, $catalog->image_options());
         $this->assertNotEmpty(\cache::make('aiprovider_awsbr', 'model_catalog')->get(model_catalog::image_cache_key($provider)));
@@ -482,7 +480,7 @@ final class model_catalog_test extends \advanced_testcase {
         $make = function (string $name, string $availablemodels) use ($live): model_catalog {
             return $this->catalog_with_mock(
                 $this->make_list_instance($name, $availablemodels),
-                new \Aws\MockHandler([$this->models_result($live)])
+                new \Aws\MockHandler([$this->models_result($live), new \Aws\Result(['inferenceProfileSummaries' => []])])
             );
         };
 
@@ -498,7 +496,7 @@ final class model_catalog_test extends \advanced_testcase {
     }
 
     /**
-     * When the list cannot be loaded: Nova Canvas plus the callable image lines of the allowlist.
+     * When the list cannot be loaded: the default model plus the callable image lines of the allowlist.
      */
     public function test_image_options_fallback(): void {
         $this->resetAfterTest();
@@ -512,22 +510,179 @@ final class model_catalog_test extends \advanced_testcase {
         $options = $this->catalog_with_mock($provider, $mock)->image_options();
 
         $this->assertDebuggingCalled();
-        $this->assertSame(['amazon.nova-canvas-v1:0', 'stability.sd3-5-large-v1:0'], array_keys($options));
+        $this->assertSame(['stability.stable-image-core-v1:1', 'stability.sd3-5-large-v1:0'], array_keys($options));
         $this->assertSame('SD 3.5', $options['stability.sd3-5-large-v1:0']);
     }
 
     /**
-     * A list where nothing is callable falls back to the default and is not cached.
+     * A list where nothing is callable is "loaded and empty": no model is offered and it is not cached.
      */
     public function test_image_options_when_no_listed_model_is_callable(): void {
         $this->resetAfterTest();
         $provider = $this->make_list_instance('image-none');
-        $mock = new \Aws\MockHandler([$this->models_result(['stability.stable-image-inpaint-v1:0' => 'Inpaint'])]);
+        $mock = new \Aws\MockHandler([
+            $this->models_result(['stability.stable-image-inpaint-v1:0' => 'Inpaint']),
+            new \Aws\Result(['inferenceProfileSummaries' => []]),
+        ]);
+        $catalog = $this->catalog_with_mock($provider, $mock);
 
-        $options = $this->catalog_with_mock($provider, $mock)->image_options();
-
-        $this->assertSame(['amazon.nova-canvas-v1:0'], array_keys($options));
+        $this->assertSame([], $catalog->image_options());
         $this->assertFalse(\cache::make('aiprovider_awsbr', 'model_catalog')->get(model_catalog::image_cache_key($provider)));
+    }
+
+    /**
+     * Empty and error states differ, and neither offers a model that does not exist unless loading failed.
+     */
+    public function test_image_state_empty_versus_error(): void {
+        $this->resetAfterTest();
+        $empty = $this->make_list_instance('state-empty', "stability.sd3-5-large-v1:0|SD\n");
+        $catalog = $this->catalog_with_mock($empty, new \Aws\MockHandler([
+            $this->models_result([]),
+            new \Aws\Result(['inferenceProfileSummaries' => []]),
+        ]));
+        $this->assertSame(model_catalog::STATE_EMPTY, $catalog->image_state());
+        // Even an allowlist line is not offered when the region has no models.
+        $this->assertSame([], $catalog->image_options());
+
+        $error = $this->make_list_instance('state-error');
+        $mock = new \Aws\MockHandler([new \Aws\Exception\AwsException('denied', new \Aws\Command('ListFoundationModels'))]);
+        $catalog = $this->catalog_with_mock($error, $mock);
+        $this->assertSame(model_catalog::STATE_ERROR, $catalog->image_state());
+        $this->assertSame(['stability.stable-image-core-v1:1'], array_keys($catalog->image_options()));
+        $this->assertDebuggingCalled();
+
+        $ok = $this->make_list_instance('state-ok');
+        $catalog = $this->catalog_with_mock($ok, new \Aws\MockHandler([
+            $this->models_result(['stability.sd3-5-large-v1:0' => 'SD']),
+            new \Aws\Result(['inferenceProfileSummaries' => []]),
+        ]));
+        $this->assertSame(model_catalog::STATE_OK, $catalog->image_state());
+    }
+
+    /**
+     * The image list is read in the image region, and cached per provider and region.
+     */
+    public function test_image_list_uses_the_image_region_and_caches_per_region(): void {
+        $this->resetAfterTest();
+        $provider = $this->make_list_instance('image-region');
+        $regions = [];
+        $catalog = new class ($provider, $regions) extends model_catalog {
+            /** @var array Receives the region of every client built. */
+            private array $regions;
+
+            /**
+             * Build a catalog that records the regions of its control clients.
+             *
+             * @param provider $provider The provider instance.
+             * @param array $regions Receives the region of every client built.
+             */
+            public function __construct(provider $provider, array &$regions) {
+                $this->regions = &$regions;
+                parent::__construct($provider);
+            }
+
+            #[\Override]
+            protected function control_client(string $region): \Aws\Bedrock\BedrockClient {
+                $this->regions[] = $region;
+                $result = new \Aws\Result(['modelSummaries' => [
+                    ['modelId' => 'stability.stable-image-core-v1:1', 'modelName' => $region,
+                        'inferenceTypesSupported' => ['ON_DEMAND']],
+                ]]);
+                return new \Aws\Bedrock\BedrockClient([
+                    'region' => $region, 'version' => 'latest', 'credentials' => ['key' => 'A', 'secret' => 'S'],
+                    'retries' => 0,
+                    'handler' => new \Aws\MockHandler([$result, new \Aws\Result(['inferenceProfileSummaries' => []])]),
+                ]);
+            }
+        };
+
+        $west = $catalog->image_options('us-west-2');
+        $this->assertSame(['stability.stable-image-core-v1:1' => 'us-west-2'], $west);
+        // The instance's own region when none is given.
+        $this->assertSame(['stability.stable-image-core-v1:1' => 'us-east-1'], $catalog->image_options());
+        $this->assertSame(['us-west-2', 'us-east-1'], $regions);
+        // Each is cached under its own key, which has the provider id and the region.
+        $cache = \cache::make('aiprovider_awsbr', 'model_catalog');
+        $westkey = model_catalog::image_cache_key($provider, 'us-west-2');
+        $this->assertNotSame($westkey, model_catalog::image_cache_key($provider));
+        $this->assertSame(model_catalog::image_cache_key($provider), model_catalog::image_cache_key($provider, 'us-east-1'));
+        $this->assertStringContainsString('_' . $provider->id . '_uswest2', $westkey);
+        $this->assertNotFalse($cache->get($westkey));
+        // Served from the cache: no new client.
+        $this->assertSame($west, $catalog->image_options('us-west-2'));
+        $this->assertCount(2, $regions);
+    }
+
+    /**
+     * Geo and global prefixes are ignored when matching families; editing models stay out.
+     *
+     * @param string $id The model or profile id.
+     * @param bool $expected Whether it is a supported text-to-image id.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('geo_prefix_provider')]
+    public function test_is_supported_image_id_with_geo_prefix(string $id, bool $expected): void {
+        $this->assertSame($expected, model_catalog::is_supported_image_id($id));
+    }
+
+    /**
+     * Ids with and without geo prefixes.
+     *
+     * @return array
+     */
+    public static function geo_prefix_provider(): array {
+        $out = [];
+        foreach (['', 'us.', 'eu.', 'apac.', 'global.', 'us-gov.', 'jp.', 'au.', 'ca.'] as $prefix) {
+            $out["{$prefix}core"] = [$prefix . 'stability.stable-image-core-v1:1', true];
+            $out["{$prefix}ultra"] = [$prefix . 'stability.stable-image-ultra-v1:1', true];
+            $out["{$prefix}sd35"] = [$prefix . 'stability.sd3-5-large-v1:0', true];
+            $out["{$prefix}inpaint"] = [$prefix . 'stability.stable-image-inpaint-v1:0', false];
+            $out["{$prefix}upscale"] = [$prefix . 'stability.stable-conservative-upscale-v1:0', false];
+        }
+        $out['unknown prefix'] = ['xx.stability.stable-image-core-v1:1', false];
+        return $out;
+    }
+
+    /**
+     * Image inference profiles of supported families are listed; editing profiles are not.
+     */
+    public function test_image_list_includes_supported_image_profiles(): void {
+        $this->resetAfterTest();
+        $provider = $this->make_list_instance('image-profiles');
+        $profile = static fn(string $id, string $status = 'ACTIVE') => [
+            'inferenceProfileId' => $id, 'inferenceProfileName' => 'P ' . $id, 'status' => $status,
+        ];
+        $mock = new \Aws\MockHandler([
+            $this->models_result([]),
+            new \Aws\Result(['inferenceProfileSummaries' => [
+                $profile('us.stability.stable-image-core-v1:1'),
+                $profile('global.stability.stable-image-ultra-v1:1'),
+                $profile('us.stability.stable-image-inpaint-v1:0'),
+                $profile('us.anthropic.claude-sonnet-4-6'),
+                $profile('eu.stability.sd3-5-large-v1:0', 'INACTIVE'),
+            ]]),
+        ]);
+        $catalog = $this->catalog_with_mock($provider, $mock);
+
+        $this->assertSame(model_catalog::STATE_OK, $catalog->image_state());
+        $this->assertSame(
+            ['global.stability.stable-image-ultra-v1:1', 'us.stability.stable-image-core-v1:1'],
+            array_keys($catalog->image_options())
+        );
+    }
+
+    /**
+     * Prefixed image ids stay out of the chat list too.
+     */
+    public function test_strip_geo_prefix(): void {
+        $this->assertSame('stability.sd3-5-large-v1:0', model_catalog::strip_geo_prefix('us-gov.stability.sd3-5-large-v1:0'));
+        $this->assertSame('amazon.nova-lite-v1:0', model_catalog::strip_geo_prefix('amazon.nova-lite-v1:0'));
+    }
+
+    /**
+     * The default image model is Stable Image Core, and no retired model is a default.
+     */
+    public function test_default_image_model(): void {
+        $this->assertSame('stability.stable-image-core-v1:1', model_catalog::DEFAULT_IMAGE_MODEL);
     }
 
     /**

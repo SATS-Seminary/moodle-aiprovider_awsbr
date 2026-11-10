@@ -52,7 +52,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Production runs Moodle 5.0 until its upgrade to 5.3.
+          # The oldest supported branch (5.0) and the newest (5.3).
           - php: '8.3'
             moodle-branch: 'MOODLE_500_STABLE'
             database: 'pgsql'
@@ -98,14 +98,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci phpmd
 
-      # Style checks are advisory while the plugin stabilises.
       - name: Moodle Code Checker
-        continue-on-error: true
         if: ${{ !cancelled() }}
-        run: moodle-plugin-ci phpcs
+        run: moodle-plugin-ci phpcs --max-warnings 0
 
       - name: Moodle PHPDoc Checker
-        continue-on-error: true
         if: ${{ !cancelled() }}
         run: moodle-plugin-ci phpdoc
 

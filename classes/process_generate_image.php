@@ -21,9 +21,10 @@ namespace aiprovider_awsbr;
  *
  * Image models use the raw InvokeModel API, so like process_embed_text this class
  * extends \core_ai\process_base directly. The request body is built per model
- * family, chosen by model id prefix:
- *  - amazon.nova-canvas-*             → Nova Canvas TEXT_IMAGE
- *  - amazon.titan-image-generator-*   → Titan Image Generator TEXT_IMAGE
+ * family, chosen by model id prefix,
+ * after removing any geo or global prefix (us., eu., global. ...):
+ *  - amazon.nova-canvas-*             → Nova Canvas TEXT_IMAGE (retired by AWS)
+ *  - amazon.titan-image-generator-*   → Titan Image Generator TEXT_IMAGE (retired by AWS)
  *  - stability.* (SD3 / SD3.5 Large, Stable Image Core, Stable Image Ultra)
  *                                     → Stability AI text-to-image
  * Any other model fails with UnsupportedModel; nothing is sent to AWS.
@@ -34,7 +35,9 @@ namespace aiprovider_awsbr;
  * message that does not repeat the prompt. The image is watermarked with
  * \core_ai\ai_image, as core's providers do, and stored in the user's draft area.
  *
- * Throttling and fallback-region retry work as in process_embed_text. Image calls
+ * Calls go to the action's image generation region when it is set (else the
+ * instance's region). Throttling and fallback-region retry work as in process_embed_text,
+ * except that the fallback region is only tried when no image region is set. Image calls
  * use a 300 second read timeout (AWS advises at least that), set through the
  * client factory for these calls only.
  *
@@ -106,6 +109,7 @@ class process_generate_image extends \core_ai\process_base {
      * @return string|null One of the FAMILY_ constants, null when not a supported image model.
      */
     public static function get_family(string $modelid): ?string {
+        $modelid = model_catalog::strip_geo_prefix($modelid);
         if (str_starts_with($modelid, 'amazon.nova-canvas-')) {
             return self::FAMILY_NOVA;
         }
@@ -128,12 +132,21 @@ class process_generate_image extends \core_ai\process_base {
     }
 
     /**
-     * The image models this provider instance allows (used when the action has no model set).
+     * The image generation region of the action ('' = the instance's region).
+     *
+     * @return string
+     */
+    protected function get_image_region(): string {
+        return trim((string) ($this->get_settings()['imageregion'] ?? ''));
+    }
+
+    /**
+     * The image models available in the image generation region (used when the action has no model set).
      *
      * @return array Map of model id => label.
      */
     protected function get_allowed_models(): array {
-        return (new model_catalog($this->provider))->image_options();
+        return (new model_catalog($this->provider))->image_options($this->get_image_region());
     }
 
     /**
@@ -432,8 +445,12 @@ class process_generate_image extends \core_ai\process_base {
         $body = $this->build_request_body($family);
         \core_php_time_limit::raise(bedrock_client_factory::IMAGE_TIMEOUT + 60);
 
-        $result = $this->call_invoke_model($modelid, $family, $body, region: null);
-        if ($result === null) {
+        // An explicit image region goes there; empty means the instance's region.
+        $imageregion = $this->get_image_region();
+        $result = $this->call_invoke_model($modelid, $family, $body, region: $imageregion !== '' ? $imageregion : null);
+        if ($result === null && $imageregion === '') {
+            // The fallback region is only tried for the instance's own region: with an
+            // explicit image region it probably has no image models.
             $fallbackregion = trim((string) ($this->provider->config['fallbackregion'] ?? ''));
             if ($fallbackregion !== '') {
                 $result = $this->call_invoke_model($modelid, $family, $body, region: $fallbackregion);

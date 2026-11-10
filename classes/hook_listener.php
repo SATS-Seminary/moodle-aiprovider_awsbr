@@ -69,7 +69,8 @@ class hook_listener {
         $mform->addHelpButton('apikey', 'apikey', 'aiprovider_awsbr');
         $mform->hideIf('apikey', 'authmode', 'neq', 'api_key');
 
-        // Static credentials, shown when authmode = static.
+        // Access key and secret: the credentials for static mode, and the optional base
+        // credentials that sign the sts:AssumeRole call in assume_role mode.
         $mform->addElement(
             'text',
             'accesskeyid',
@@ -78,7 +79,7 @@ class hook_listener {
         );
         $mform->setType('accesskeyid', PARAM_TEXT);
         $mform->addHelpButton('accesskeyid', 'accesskeyid', 'aiprovider_awsbr');
-        $mform->hideIf('accesskeyid', 'authmode', 'neq', 'static');
+        $mform->hideIf('accesskeyid', 'authmode', 'in', ['api_key', 'instance_role']);
 
         $mform->addElement(
             'passwordunmask',
@@ -87,7 +88,7 @@ class hook_listener {
             ['size' => 60]
         );
         $mform->addHelpButton('secretaccesskey', 'secretaccesskey', 'aiprovider_awsbr');
-        $mform->hideIf('secretaccesskey', 'authmode', 'neq', 'static');
+        $mform->hideIf('secretaccesskey', 'authmode', 'in', ['api_key', 'instance_role']);
 
         // STS assume-role, shown when authmode = assume_role.
         $mform->addElement(
@@ -205,7 +206,7 @@ class hook_listener {
             'availablemodels',
             "global.anthropic.claude-sonnet-4-5-20250929-v1:0|Claude Sonnet 4.5\n" .
             "global.anthropic.claude-haiku-4-5-20251001-v1:0|Claude Haiku 4.5\n" .
-            "global.anthropic.claude-opus-4-5-20250929-v1:0|Claude Opus 4.5\n" .
+            "global.anthropic.claude-opus-4-5-20251101-v1:0|Claude Opus 4.5\n" .
             "amazon.titan-embed-text-v2:0|Amazon Titan Embeddings v2"
         );
         $mform->addHelpButton('availablemodels', 'availablemodels', 'aiprovider_awsbr');
