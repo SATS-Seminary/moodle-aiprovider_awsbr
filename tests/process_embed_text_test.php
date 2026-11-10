@@ -59,6 +59,9 @@ final class process_embed_text_test extends \advanced_testcase {
 
     /**
      * A sample 1024-dim float vector for test payloads (first 4 values differ).
+     *
+     * @param int $dim Number of vector elements.
+     * @return array The vector.
      */
     private static function sample_vector(int $dim = 4): array {
         $v = [];
@@ -70,6 +73,10 @@ final class process_embed_text_test extends \advanced_testcase {
 
     /**
      * Titan v2 InvokeModel success response body (JSON string).
+     *
+     * @param int $dim Number of embedding elements.
+     * @param int $tokens The reported input token count.
+     * @return string The JSON body.
      */
     private static function titan_response_body(int $dim = 4, int $tokens = 7): string {
         return json_encode([
@@ -80,6 +87,9 @@ final class process_embed_text_test extends \advanced_testcase {
 
     /**
      * Cohere v3 InvokeModel success response body (JSON string).
+     *
+     * @param int $dim Number of embedding elements.
+     * @return string The JSON body.
      */
     private static function cohere_response_body(int $dim = 4): string {
         return json_encode([
@@ -110,6 +120,10 @@ final class process_embed_text_test extends \advanced_testcase {
 
     /**
      * Per-action config for the embed_text action.
+     *
+     * @param string $model The model id.
+     * @param string $dim The dimensions setting.
+     * @return array The action config.
      */
     private function action_config(string $model = 'amazon.titan-embed-text-v2:0', string $dim = ''): array {
         return [
@@ -130,6 +144,11 @@ final class process_embed_text_test extends \advanced_testcase {
      * is driven by a simple $resultsfn callback instead of real AWS.
      *
      * $resultsfn receives ($modelid, $body, $region) and returns an array or null.
+     *
+     * @param provider $provider The provider instance.
+     * @param embed_text $action The action to process.
+     * @param callable $resultsfn Callback returning an array or null.
+     * @return process_embed_text The processor.
      */
     private function make_processor(
         provider $provider,

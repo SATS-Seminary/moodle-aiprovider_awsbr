@@ -48,6 +48,9 @@ final class bedrock_client_factory_test extends \advanced_testcase {
 
     /**
      * Build a provider instance with the given config array.
+     *
+     * @param array $config The provider config.
+     * @return provider The provider instance.
      */
     private function make_provider(array $config): provider {
         return $this->manager->create_provider_instance(

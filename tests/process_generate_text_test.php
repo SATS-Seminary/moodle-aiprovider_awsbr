@@ -475,20 +475,20 @@ final class process_generate_text_test extends \advanced_testcase {
             actionconfig: $this->action_config(),
         );
 
-        $callcount = 0;
+        $callcount = (object) ['calls' => 0];
         $processor = new class ($provider, $this->action, $callcount) extends process_generate_text {
             /**
-             * Build a processor that counts Converse calls via a referenced counter.
+             * Build a processor that counts Converse calls via a shared counter.
              *
              * @param provider $provider The provider instance.
              * @param \core_ai\aiactions\base $action The action to process.
-             * @param int &$callcounter Reference to the caller's Converse call counter.
+             * @param \stdClass $callcounter Shared counter object whose calls property is incremented per call.
              */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
-                /** @var int Reference to the caller's Converse call counter. */
-                private int &$callcounter, // phpcs:ignore moodle.Commenting.VariableComment.Missing
+                /** @var \stdClass Shared counter object. */
+                private \stdClass $callcounter,
             ) {
                 parent::__construct($provider, $action);
             }
@@ -501,9 +501,9 @@ final class process_generate_text_test extends \advanced_testcase {
              * @return array|null The error result, or null to signal a throttle retry.
              */
             protected function call_converse(array $args, ?string $region): ?array {
-                $this->callcounter++;
+                $this->callcounter->calls++;
                 // Primary region → throttle; fallback region → error.
-                if ($this->callcounter === 1) {
+                if ($this->callcounter->calls === 1) {
                     return null; // Simulate ThrottlingException.
                 }
                 return ['success' => false, 'errorcode' => 500, 'error' => 'BedrockError',
@@ -513,7 +513,7 @@ final class process_generate_text_test extends \advanced_testcase {
 
         $result = $processor->process();
         $this->assertFalse($result->get_success());
-        $this->assertEquals(2, $callcount, 'Should have been called twice (primary + fallback).');
+        $this->assertEquals(2, $callcount->calls, 'Should have been called twice (primary + fallback).');
     }
 
     /**
@@ -523,20 +523,20 @@ final class process_generate_text_test extends \advanced_testcase {
         $this->setUser($this->getDataGenerator()->create_user());
 
         // Provider with no fallbackregion.
-        $callcount = 0;
+        $callcount = (object) ['calls' => 0];
         $processor = new class ($this->provider, $this->action, $callcount) extends process_generate_text {
             /**
-             * Build a processor that counts Converse calls via a referenced counter.
+             * Build a processor that counts Converse calls via a shared counter.
              *
              * @param provider $provider The provider instance.
              * @param \core_ai\aiactions\base $action The action to process.
-             * @param int &$callcounter Reference to the caller's Converse call counter.
+             * @param \stdClass $callcounter Shared counter object whose calls property is incremented per call.
              */
             public function __construct(
                 provider $provider,
                 \core_ai\aiactions\base $action,
-                /** @var int Reference to the caller's Converse call counter. */
-                private int &$callcounter, // phpcs:ignore moodle.Commenting.VariableComment.Missing
+                /** @var \stdClass Shared counter object. */
+                private \stdClass $callcounter,
             ) {
                 parent::__construct($provider, $action);
             }
@@ -549,7 +549,7 @@ final class process_generate_text_test extends \advanced_testcase {
              * @return array|null Always null to signal a throttle.
              */
             protected function call_converse(array $args, ?string $region): ?array {
-                $this->callcounter++;
+                $this->callcounter->calls++;
                 return null; // Simulate ThrottlingException always.
             }
         };
@@ -557,7 +557,7 @@ final class process_generate_text_test extends \advanced_testcase {
         $result = $processor->process();
         $this->assertFalse($result->get_success());
         // Ensure only primary was called (no fallback region configured).
-        $this->assertEquals(1, $callcount);
+        $this->assertEquals(1, $callcount->calls);
     }
 
     // -------------------------------------------------------------------------
@@ -586,8 +586,8 @@ final class process_generate_text_test extends \advanced_testcase {
         );
 
         // Call count for mock.
-        $callcount = 0;
-        $makeprocessor = function (int $userid) use ($provider, &$callcount): process_generate_text {
+        $callcount = (object) ['calls' => 0];
+        $makeprocessor = function (int $userid) use ($provider, $callcount): process_generate_text {
             $action = new \core_ai\aiactions\generate_text(
                 contextid:  1,
                 userid:     $userid,
@@ -595,17 +595,17 @@ final class process_generate_text_test extends \advanced_testcase {
             );
             return new class ($provider, $action, $callcount) extends process_generate_text {
                 /**
-                 * Build a processor that counts Converse calls via a referenced counter.
+                 * Build a processor that counts Converse calls via a shared counter.
                  *
                  * @param provider $provider The provider instance.
                  * @param \core_ai\aiactions\base $action The action to process.
-                 * @param int $counter Reference to the caller's Converse call counter.
+                 * @param \stdClass $counter Shared counter object whose calls property is incremented per call.
                  */
                 public function __construct(
                     provider $provider,
                     \core_ai\aiactions\base $action,
-                    /** @var int Reference to the caller's Converse call counter. */
-                    private int &$counter, // phpcs:ignore moodle.Commenting.VariableComment.Missing
+                    /** @var \stdClass Shared counter object. */
+                    private \stdClass $counter,
                 ) {
                     parent::__construct($provider, $action);
                 }
@@ -618,7 +618,7 @@ final class process_generate_text_test extends \advanced_testcase {
                  * @return array|null The canned success result.
                  */
                 protected function call_converse(array $args, ?string $region): ?array {
-                    $this->counter++;
+                    $this->counter->calls++;
                     return [
                         'success'          => true,
                         'id'               => 'req-1',

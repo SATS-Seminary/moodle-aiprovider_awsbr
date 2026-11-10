@@ -423,7 +423,8 @@ final class process_generate_image_test extends \advanced_testcase {
         $mock = new MockHandler([]);
         $regions = [];
         $response = $this->make_processor($this->make_provider(''), $this->make_action(), $mock, $regions, [])->process();
-        $this->assertSame('NoImageModel', $response->get_error());
+        $this->assert_error_name('NoImageModel', $response);
+        $this->assertSame(404, $response->get_errorcode());
         $this->assertStringContainsString('image generation region', $response->get_errormessage());
     }
 
@@ -498,13 +499,33 @@ final class process_generate_image_test extends \advanced_testcase {
     }
 
     /**
+     * Assert the AWS or Bedrock error name of a failed response.
+     *
+     * response_base::get_error() only exists from Moodle 5.1, so the name is checked where it is available.
+     * The error code and message, which exist in 5.0, are asserted separately by the callers.
+     *
+     * @param string $expected The expected error name.
+     * @param \core_ai\aiactions\responses\response_base $response The response.
+     * @param string $message Optional failure message.
+     */
+    private function assert_error_name(
+        string $expected,
+        \core_ai\aiactions\responses\response_base $response,
+        string $message = ''
+    ): void {
+        if (method_exists($response, 'get_error')) {
+            $this->assertSame($expected, $response->get_error(), $message);
+        }
+    }
+
+    /**
      * Assert that a failed response is a content-filter refusal that does not echo the prompt.
      *
      * @param \core_ai\aiactions\responses\response_base $response The response.
      */
     private function assert_content_filtered(\core_ai\aiactions\responses\response_base $response): void {
         $this->assertFalse($response->get_success());
-        $this->assertSame('ContentFiltered', $response->get_error());
+        $this->assert_error_name('ContentFiltered', $response);
         $this->assertSame(400, $response->get_errorcode());
         $this->assertSame(
             get_string('error:generate_image:content_filtered', 'aiprovider_awsbr'),
@@ -564,7 +585,7 @@ final class process_generate_image_test extends \advanced_testcase {
         $regions = [];
         $response = $this->make_processor($provider, $this->make_action(), $mock, $regions)->process();
         $this->assertFalse($response->get_success());
-        $this->assertSame('BedrockError', $response->get_error());
+        $this->assert_error_name('BedrockError', $response);
         $this->assertSame(500, $response->get_errorcode());
     }
 
@@ -577,7 +598,7 @@ final class process_generate_image_test extends \advanced_testcase {
         $regions = [];
         $response = $this->make_processor($this->provider, $this->make_action(), $mock, $regions)->process();
         $this->assertFalse($response->get_success());
-        $this->assertSame('ValidationException', $response->get_error());
+        $this->assert_error_name('ValidationException', $response);
         $this->assertSame(400, $response->get_errorcode());
     }
 
@@ -590,7 +611,7 @@ final class process_generate_image_test extends \advanced_testcase {
         $regions = [];
         $response = $this->make_processor($this->provider, $this->make_action(), $mock, $regions)->process();
         $this->assertSame(403, $response->get_errorcode());
-        $this->assertSame('AccessDeniedException', $response->get_error());
+        $this->assert_error_name('AccessDeniedException', $response);
     }
 
     /**
@@ -604,7 +625,7 @@ final class process_generate_image_test extends \advanced_testcase {
             $regions = [];
             $response = $this->make_processor($this->provider, $this->make_action(), $mock, $regions)->process();
             $this->assertFalse($response->get_success());
-            $this->assertSame('InvalidResponseException', $response->get_error(), $payload);
+            $this->assert_error_name('InvalidResponseException', $response, $payload);
             $this->assertSame(502, $response->get_errorcode());
         }
     }
@@ -622,7 +643,8 @@ final class process_generate_image_test extends \advanced_testcase {
         foreach ([0, 1] as $unused) {
             $response = $this->make_processor($this->provider, $this->make_action(), $mock, $regions)->process();
             $this->assertFalse($response->get_success());
-            $this->assertSame('BedrockError', $response->get_error());
+            $this->assert_error_name('BedrockError', $response);
+            $this->assertSame(500, $response->get_errorcode());
         }
     }
 
@@ -636,7 +658,7 @@ final class process_generate_image_test extends \advanced_testcase {
         $regions = [];
         $response = $this->make_processor($provider, $this->make_action(), $mock, $regions)->process();
         $this->assertFalse($response->get_success());
-        $this->assertSame('UnsupportedModel', $response->get_error());
+        $this->assert_error_name('UnsupportedModel', $response);
         $this->assertSame(400, $response->get_errorcode());
         $this->assertSame([], $regions);
     }
@@ -658,7 +680,7 @@ final class process_generate_image_test extends \advanced_testcase {
         $mock = new MockHandler([]);
         $response = $this->make_processor($provider, $this->make_action(), $mock, $regions, [])->process();
         $this->assertFalse($response->get_success());
-        $this->assertSame('NoImageModel', $response->get_error());
+        $this->assert_error_name('NoImageModel', $response);
         $this->assertSame(404, $response->get_errorcode());
     }
 
@@ -692,7 +714,7 @@ final class process_generate_image_test extends \advanced_testcase {
         $response = $this->make_processor($provider, $this->make_action(), $mock, $regions)->process();
         $this->assertFalse($response->get_success());
         $this->assertSame(429, $response->get_errorcode());
-        $this->assertSame('ThrottlingException', $response->get_error());
+        $this->assert_error_name('ThrottlingException', $response);
         $this->assertSame([null, 'eu-west-1'], $regions);
 
         // Without a fallback region there is a single attempt.
