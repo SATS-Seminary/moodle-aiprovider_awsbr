@@ -2,6 +2,12 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.7.1 — 2026-11-24
+- Marketplace review fixes. The package now includes a `LICENSE` file (GNU GPL
+  v3) in the plugin root (#1). The two cache definitions, `credentials` and
+  `model_catalog`, now have their `cachedef_` language strings, so they show a
+  name on the cache administration page (#2).
+
 ## 1.7.0 — 2026-11-10
 - New: the core `generate_image` action. Image models are called with
   `InvokeModel`, with request formats for Stability AI (Stable Diffusion 3.5

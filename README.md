@@ -609,4 +609,5 @@ https://github.com/SATS-Seminary/moodle-aiprovider_awsbr/issues. See
 
 ## License
 
-GNU GPL v3 or later. Copyright 2026 South African Theological Seminary.
+GNU GPL v3 or later; the full text is in [LICENSE](LICENSE). Copyright 2026
+South African Theological Seminary.
