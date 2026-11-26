@@ -27,6 +27,9 @@ namespace aiprovider_awsbr;
  *  Cache points are left out when Moodle's AWS SDK predates them (Moodle 5.0
  *  ships 3.342), because that SDK sends each one as an empty block, which
  *  Bedrock rejects. The call then works, without prompt caching.
+ *  - documents     → one document block each (PDF bytes), after the cached
+ *                    prefix and before the prompt text. The AWS SDK base64-encodes
+ *                    blob members itself, so the raw bytes are passed.
  *  - prompttext    → last text block of the user message
  *  - outputschema  → additionalModelRequestFields.output_config.format
  *                    (type json_schema), merged with output_config.effort
@@ -178,6 +181,14 @@ class process_grade_response extends abstract_processor {
         if ($cachedprompt !== '') {
             $content[] = ['text' => $cachedprompt];
             array_push($content, ...$cachepoint);
+        }
+        foreach ((array) $this->action->get_configuration('documents') as $document) {
+            $content[] = ['document' => [
+                'format' => $document['format'],
+                'name'   => $document['name'],
+                // Raw bytes: the SDK base64-encodes blob members when it builds the request.
+                'source' => ['bytes' => $document['content']],
+            ]];
         }
         $content[] = ['text' => (string) $this->action->get_configuration('prompttext')];
 

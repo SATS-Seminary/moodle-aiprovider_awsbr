@@ -420,6 +420,9 @@ $action = new grade_response(
     outputschema: $schema,           // JSON Schema, top-level type "object".
     modelid: '',                     // '' = the action's configured model.
     maxtokens: 0,                    // 0 = the action's configured max tokens.
+    documents: [                     // Optional PDF files (see below).
+        ['name' => 'Submission file 1', 'format' => 'pdf', 'content' => $pdfbytes],
+    ],
 );
 $response = \core\di::get(\core_ai\manager::class)->process_action($action);
 
@@ -447,6 +450,20 @@ if ($response->get_success()) {
   It must be in the instance's available model set (live list, narrowed by the
   textarea) or be the action's configured model. Otherwise nothing is sent to
   AWS and the call fails with error `ModelNotAllowed` (code 400).
+- Documents: the optional `documents` argument (last) attaches PDF files to the
+  user message. Each is `['name' => string, 'format' => 'pdf', 'content' =>
+  raw bytes]`. Limits: `grade_response::MAX_DOCUMENTS` (5) files, each at most
+  `grade_response::MAX_DOCUMENT_BYTES` (4.5 MB, the Bedrock limit), formats in
+  `grade_response::DOCUMENT_FORMATS` (`pdf`). Names may only use letters,
+  digits, spaces, hyphens and round or square brackets, with no two spaces in a
+  row, and must be unique ignoring case; the constructor throws a
+  `coding_exception` otherwise. Pass raw bytes: the AWS SDK base64-encodes them.
+  The name is sent to the model, so do not use a file name that identifies a
+  person. The user message order is cached prefix, documents, prompt text.
+  Document bytes are never stored or logged; the prompt hash covers each
+  document's name and SHA-256. To detect support, use
+  `defined(grade_response::class . '::MAX_DOCUMENTS')`. The model must accept
+  PDF input.
 - Errors specific to this action:
 
 | Error | Code | Meaning |

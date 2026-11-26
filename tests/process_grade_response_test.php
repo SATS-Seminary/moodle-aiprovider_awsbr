@@ -380,6 +380,173 @@ final class process_grade_response_test extends \advanced_testcase {
         $this->assertSame(self::SONNET45, $args['modelId']);
     }
 
+    // Documents.
+
+    /**
+     * Build a document for tests.
+     *
+     * @param string $name
+     * @param string $content
+     * @return array
+     */
+    private static function make_document(string $name = 'Submission file 1', string $content = "%PDF-1.4\n\x00\xff bytes"): array {
+        return ['name' => $name, 'format' => 'pdf', 'content' => $content];
+    }
+
+    /**
+     * Document blocks sit between the cached prefix (and its cache point) and the prompt text, with raw bytes.
+     */
+    public function test_build_request_args_with_documents(): void {
+        $docs = [self::make_document('Submission file 1', "%PDF-a\x00\xff"), self::make_document('Submission file 2', '%PDF-b')];
+        $args = $this->args_for($this->make_action(['documents' => $docs]));
+
+        $this->assertSame(
+            [
+                ['text' => 'Question and rubric.'],
+                ['cachePoint' => ['type' => 'default']],
+                ['document' => ['format' => 'pdf', 'name' => 'Submission file 1', 'source' => ['bytes' => "%PDF-a\x00\xff"]]],
+                ['document' => ['format' => 'pdf', 'name' => 'Submission file 2', 'source' => ['bytes' => '%PDF-b']]],
+                ['text' => 'Student answer: secret-student-text'],
+            ],
+            $args['messages'][0]['content'],
+        );
+    }
+
+    /**
+     * Without a cached prompt the documents come first, then the prompt text.
+     */
+    public function test_build_request_args_with_documents_and_no_cachedprompt(): void {
+        $args = $this->args_for($this->make_action(['cachedprompt' => '', 'documents' => [self::make_document()]]));
+        $content = $args['messages'][0]['content'];
+        $this->assertCount(2, $content);
+        $this->assertArrayHasKey('document', $content[0]);
+        $this->assertSame(['text' => 'Student answer: secret-student-text'], $content[1]);
+    }
+
+    /**
+     * Without documents the request has no document block.
+     */
+    public function test_build_request_args_without_documents(): void {
+        $args = $this->args_for($this->make_action());
+        $this->assertStringNotContainsString('document', json_encode($args['messages']));
+    }
+
+    /**
+     * The SDK base64-encodes the raw bytes itself, so they must not be encoded twice.
+     */
+    public function test_sdk_base64_encodes_document_bytes_once(): void {
+        $bytes = "%PDF-1.4\x00\xff\xfe";
+        $args = $this->args_for($this->make_action(['documents' => [self::make_document('Submission file 1', $bytes)]]));
+        $client = new \Aws\BedrockRuntime\BedrockRuntimeClient([
+            'region'      => 'af-south-1',
+            'version'     => 'latest',
+            'credentials' => ['key' => 'AKID', 'secret' => 'SECRET'],
+            'handler'     => function ($command, $request) use (&$sent) {
+                $sent = (string) $request->getBody();
+                return \GuzzleHttp\Promise\Create::rejectionFor(new \RuntimeException('stop'));
+            },
+        ]);
+        try {
+            $client->converse($args);
+        } catch (\Throwable $e) {
+            unset($e);
+        }
+        $body = json_decode($sent, true);
+        $block = $body['messages'][0]['content'][2];
+        $this->assertSame($bytes, base64_decode($block['document']['source']['bytes'], true));
+    }
+
+    /**
+     * The prompt hash is the pre-documents value when there are none, and changes with documents.
+     */
+    public function test_prompt_hash_with_and_without_documents(): void {
+        $plain = $this->make_action();
+        $this->assertSame(
+            hash('sha256', 'You are a strict marker.|Question and rubric.|Student answer: secret-student-text'),
+            $plain->get_prompt_hash(),
+        );
+        $this->assertSame($plain->get_prompt_hash(), $this->make_action(['documents' => []])->get_prompt_hash());
+
+        $one = $this->make_action(['documents' => [self::make_document('Submission file 1', 'AAA')]]);
+        $this->assertSame(
+            hash(
+                'sha256',
+                'You are a strict marker.|Question and rubric.|Student answer: secret-student-text'
+                    . '|Submission file 1:' . hash('sha256', 'AAA'),
+            ),
+            $one->get_prompt_hash(),
+        );
+        $this->assertNotSame($plain->get_prompt_hash(), $one->get_prompt_hash());
+        $changed = $this->make_action(['documents' => [self::make_document('Submission file 1', 'AAB')]]);
+        $this->assertNotSame($one->get_prompt_hash(), $changed->get_prompt_hash());
+    }
+
+    /**
+     * Invalid documents are rejected by the constructor, and the message never holds the content.
+     *
+     * @param array $documents
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('invalid_documents_provider')]
+    public function test_invalid_documents_throw(array $documents): void {
+        try {
+            $this->make_action(['documents' => $documents]);
+            $this->fail('Expected a coding_exception.');
+        } catch (\coding_exception $e) {
+            $this->assertStringNotContainsString('SECRETBYTES', $e->getMessage());
+            $this->assertStringNotContainsString('SECRETBYTES', (string) ($e->debuginfo ?? ''));
+        }
+    }
+
+    /**
+     * Documents that must be rejected.
+     *
+     * @return array
+     */
+    public static function invalid_documents_provider(): array {
+        $ok = static fn(string $name): array => ['name' => $name, 'format' => 'pdf', 'content' => 'SECRETBYTES'];
+        return [
+            'wrong format'      => [[['name' => 'File 1', 'format' => 'docx', 'content' => 'SECRETBYTES']]],
+            'missing format'    => [[['name' => 'File 1', 'content' => 'SECRETBYTES']]],
+            'empty content'     => [[['name' => 'File 1', 'format' => 'pdf', 'content' => '']]],
+            'too large'         => [[['name' => 'File 1', 'format' => 'pdf',
+                'content' => str_repeat('x', grade_response::MAX_DOCUMENT_BYTES + 1)]]],
+            'empty name'        => [[$ok('')]],
+            'bad characters'    => [[$ok('file_1.pdf')]],
+            'double space'      => [[$ok('File  1')]],
+            'duplicate names'   => [[$ok('File 1'), $ok('file 1')]],
+            'too many'          => [array_map($ok, ['A', 'B', 'C', 'D', 'E', 'F'])],
+            'not an array item' => [['File 1']],
+        ];
+    }
+
+    /**
+     * The maximum is accepted: five files, the largest allowed size, names with the allowed punctuation.
+     */
+    public function test_documents_at_the_limits_are_accepted(): void {
+        $docs = [];
+        foreach (['A-1', 'B (2)', 'C [3]', 'D 4', 'E5'] as $name) {
+            $docs[] = ['name' => $name, 'format' => 'pdf', 'content' => str_repeat('x', grade_response::MAX_DOCUMENT_BYTES)];
+        }
+        $action = $this->make_action(['documents' => $docs]);
+        $this->assertCount(5, $action->get_configuration('documents'));
+        $this->assertSame(['pdf'], grade_response::DOCUMENT_FORMATS);
+    }
+
+    /**
+     * Document bytes never reach an error message of a failed call.
+     */
+    public function test_failed_call_does_not_leak_document_bytes(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+        $mock = new MockHandler([
+            new AwsException('Bad input', new Command('Converse'), ['code' => 'ValidationException']),
+        ]);
+        $action = $this->make_action(['documents' => [self::make_document('Submission file 1', 'SECRETBYTES')]]);
+        $response = $this->make_processor($this->provider, $action, $mock)->process();
+
+        $this->assertFalse($response->get_success());
+        $this->assertStringNotContainsString('SECRETBYTES', $response->get_errormessage());
+    }
+
     // Success and failure of process().
 
     /**

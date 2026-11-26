@@ -31,6 +31,11 @@ use core_ai\aiactions\responses\response_base;
  * {@see \aiprovider_awsbr\aiactions\responses\response_grade_response}.
  * Validating the result against the schema is the caller's job.
  *
+ * Documents: the caller may attach up to {@see self::MAX_DOCUMENTS} PDF files, each
+ * `['name' => string, 'format' => 'pdf', 'content' => raw bytes]`. They are sent
+ * to Bedrock as Converse document blocks, between the cached prefix and the prompt
+ * text. The bytes are never stored or logged; only a hash covers them.
+ *
  * Schema limits of the native structured output: `minItems` and `maxItems`
  * accept only 0 or 1. The action does not rewrite the schema, so the caller
  * must leave other values out and enforce item counts itself.
@@ -50,6 +55,15 @@ use core_ai\aiactions\responses\response_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class grade_response extends base {
+    /** Most documents a single call may carry. */
+    public const MAX_DOCUMENTS = 5;
+
+    /** Largest single document in bytes (4.5 MB, the Bedrock Converse limit). */
+    public const MAX_DOCUMENT_BYTES = 4718592;
+
+    /** Document formats this action accepts. */
+    public const DOCUMENT_FORMATS = ['pdf'];
+
     /**
      * Create a new grade_response action.
      *
@@ -62,7 +76,11 @@ class grade_response extends base {
      *                                only accept 0 or 1; the caller enforces counts.
      * @param string $modelid         Model override; '' uses the action-configured default model.
      * @param int    $maxtokens       Maximum tokens to generate; 0 uses the action-configured default.
-     * @throws \coding_exception If the system prompt, prompt text or output schema is invalid.
+     * @param array  $documents       Files sent with the prompt, each ['name' => string, 'format' => 'pdf',
+     *                                'content' => string of raw bytes]. At most MAX_DOCUMENTS; each non-empty and at
+     *                                most MAX_DOCUMENT_BYTES. Names use letters, digits, spaces, hyphens, round and
+     *                                square brackets only, no two spaces in a row, and are unique ignoring case.
+     * @throws \coding_exception If the system prompt, prompt text, output schema or a document is invalid.
      */
     public function __construct(
         int $contextid,
@@ -80,6 +98,8 @@ class grade_response extends base {
         protected string $modelid = '',
         /** @var int Max tokens (0 = configured default). */
         protected int $maxtokens = 0,
+        /** @var array Documents sent with the prompt (raw bytes; never stored or logged). */
+        protected array $documents = [],
     ) {
         if (trim($systemprompt) === '') {
             throw new \coding_exception('grade_response requires a non-empty system prompt.');
@@ -90,7 +110,55 @@ class grade_response extends base {
         if (($outputschema['type'] ?? null) !== 'object') {
             throw new \coding_exception('grade_response output schema must be a JSON Schema of type object.');
         }
+        $this->documents = self::validate_documents($documents);
         parent::__construct($contextid);
+    }
+
+    /**
+     * Check the documents against this action's limits and Bedrock's naming rules.
+     *
+     * Messages never include document content.
+     *
+     * @param array $documents The documents as passed to the constructor.
+     * @return array The documents, re-indexed in order, with only the known keys.
+     * @throws \coding_exception If a document is invalid.
+     */
+    private static function validate_documents(array $documents): array {
+        if (count($documents) > self::MAX_DOCUMENTS) {
+            throw new \coding_exception('grade_response accepts at most ' . self::MAX_DOCUMENTS . ' documents.');
+        }
+        $clean = [];
+        $seen = [];
+        foreach (array_values($documents) as $document) {
+            if (!is_array($document)) {
+                throw new \coding_exception('grade_response documents must be arrays.');
+            }
+            $format = $document['format'] ?? null;
+            if (!is_string($format) || !in_array($format, self::DOCUMENT_FORMATS, true)) {
+                throw new \coding_exception('grade_response document format is not supported.');
+            }
+            $content = $document['content'] ?? null;
+            if (!is_string($content) || $content === '') {
+                throw new \coding_exception('grade_response document content must be a non-empty string.');
+            }
+            if (strlen($content) > self::MAX_DOCUMENT_BYTES) {
+                throw new \coding_exception('grade_response document is larger than ' . self::MAX_DOCUMENT_BYTES . ' bytes.');
+            }
+            $name = $document['name'] ?? null;
+            if (
+                !is_string($name) || $name === '' || !preg_match('/^[A-Za-z0-9\-\(\)\[\] ]+$/', $name)
+                || str_contains($name, '  ') || strlen($name) > 200
+            ) {
+                throw new \coding_exception('grade_response document name is not valid.');
+            }
+            $key = strtolower($name);
+            if (isset($seen[$key])) {
+                throw new \coding_exception('grade_response document names must be unique.');
+            }
+            $seen[$key] = true;
+            $clean[] = ['name' => $name, 'format' => $format, 'content' => $content];
+        }
+        return $clean;
     }
 
     /**
@@ -135,10 +203,18 @@ class grade_response extends base {
     /**
      * Hash identifying the prompt without storing it.
      *
-     * @return string SHA-256 of systemprompt|cachedprompt|prompttext.
+     * Without documents this is the SHA-256 of systemprompt|cachedprompt|prompttext
+     * (unchanged from earlier versions). Each document adds "|name:sha256(content)",
+     * in order.
+     *
+     * @return string SHA-256 of the prompt parts and documents.
      */
     public function get_prompt_hash(): string {
-        return hash('sha256', $this->systemprompt . '|' . $this->cachedprompt . '|' . $this->prompttext);
+        $material = $this->systemprompt . '|' . $this->cachedprompt . '|' . $this->prompttext;
+        foreach ($this->documents as $document) {
+            $material .= '|' . $document['name'] . ':' . hash('sha256', $document['content']);
+        }
+        return hash('sha256', $material);
     }
 
     /**

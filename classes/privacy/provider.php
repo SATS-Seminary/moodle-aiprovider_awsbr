@@ -92,6 +92,7 @@ class provider implements
 
         $collection->add_external_location_link('aws_bedrock', [
             'prompt'   => 'privacy:metadata:aws_bedrock:prompt',
+            'document' => 'privacy:metadata:aws_bedrock:document',
             'image'    => 'privacy:metadata:aws_bedrock:image',
             'response' => 'privacy:metadata:aws_bedrock:response',
         ], 'privacy:metadata:aws_bedrock');

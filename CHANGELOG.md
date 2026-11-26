@@ -2,6 +2,18 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.7.2 — 2026-11-26
+- New: `grade_response` accepts an optional `documents` argument, up to five PDF
+  files (4.5 MB each) sent to the model as Converse document blocks after the
+  cached prefix and before the prompt text. Names follow Bedrock's rules
+  (letters, digits, spaces, hyphens, brackets; at most 200 characters; unique),
+  and an invalid document is refused before any call is made. The constants
+  `MAX_DOCUMENTS`, `MAX_DOCUMENT_BYTES` and `DOCUMENT_FORMATS` let callers
+  detect support. Document bytes are never stored or logged; the stored prompt
+  hash is unchanged for calls without documents and includes a SHA-256 of each
+  document when there are some.
+- Privacy: the AWS Bedrock external location now lists submitted documents.
+
 ## 1.7.1 — 2026-11-24
 - Marketplace review fixes. The package now includes a `LICENSE` file (GNU GPL
   v3) in the plugin root (#1). The two cache definitions, `credentials` and

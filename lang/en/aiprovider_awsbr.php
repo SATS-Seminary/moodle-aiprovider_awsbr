@@ -160,6 +160,7 @@ $string['privacy:metadata:aiprovider_awsbr_grade_resp:responseid'] = 'The AWS re
 $string['privacy:metadata:aiprovider_awsbr_grade_resp:stopreason'] = 'Why the model stopped generating.';
 $string['privacy:metadata:aiprovider_awsbr_grade_resp:timecreated'] = 'The time the row was created.';
 $string['privacy:metadata:aws_bedrock'] = 'Requests to AWS Bedrock are sent for AI inference. Cross-Region inference profiles may process requests in other AWS regions than the one configured, and image requests may be processed in the image generation region configured for the generate_image action.';
+$string['privacy:metadata:aws_bedrock:document'] = 'PDF files attached to a structured-output request. They are sent for the request only and are not stored by this plugin.';
 $string['privacy:metadata:aws_bedrock:image'] = 'Image content when attached for multimodal inference.';
 $string['privacy:metadata:aws_bedrock:prompt'] = 'The prompt text (including any system instruction and assembled user context), and the description and negative description of an image to generate.';
 $string['privacy:metadata:aws_bedrock:response'] = 'Generated text returned by the AI model, and the generated image. Generated images are stored in the requesting user\'s draft file area and are covered by Moodle\'s own AI privacy provider and file storage.';
