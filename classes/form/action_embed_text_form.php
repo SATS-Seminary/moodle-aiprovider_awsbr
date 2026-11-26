@@ -24,6 +24,8 @@ use core_ai\form\action_settings_form;
  * Fields:
  *  - model      : dropdown of the embedding models this provider instance allows.
  *                 Default: amazon.titan-embed-text-v2:0.
+ *  - embedregion : optional AWS region for embedding calls (empty = the instance's region), for
+ *                  instances in a region that offers no embedding model (for example af-south-1).
  *  - dimensions : optional integer override for Titan v2 output dimensions (256 / 512 / 1024).
  *                 Cohere does not support this; the field is shown for all models but
  *                 only applied when the active model is in the amazon.titan-embed-* family.
@@ -39,6 +41,8 @@ use core_ai\form\action_settings_form;
 class action_embed_text_form extends action_settings_form {
     /** Default embedding model ID when no per-action override is set. */
     private const DEFAULT_MODEL = 'amazon.titan-embed-text-v2:0';
+    /** Shape of an AWS region code, for example eu-west-1 or us-gov-west-1. */
+    private const REGION_PATTERN = '/^[a-z]{2}(-gov)?-[a-z]+-\d$/';
 
     #[\Override]
     protected function definition(): void {
@@ -48,6 +52,12 @@ class action_embed_text_form extends action_settings_form {
         $actionname   = $this->_customdata['actionname']; // The 'embed_text' action name.
         $action       = $this->_customdata['action'];      // Fully-qualified action class name.
         $providerid   = $this->_customdata['providerid'] ?? 0;
+
+        // Embedding region.
+        $mform->addElement('text', 'embedregion', get_string("action:{$actionname}:embedregion", 'aiprovider_awsbr'));
+        $mform->setType('embedregion', PARAM_RAW_TRIMMED);
+        $mform->setDefault('embedregion', $actionconfig['embedregion'] ?? '');
+        $mform->addHelpButton('embedregion', "action:{$actionname}:embedregion", 'aiprovider_awsbr');
 
         // Model dropdown.
         $modeloptions = $this->get_model_options((int) $providerid, (string) ($actionconfig['model'] ?? ''));
@@ -103,9 +113,27 @@ class action_embed_text_form extends action_settings_form {
      */
     public function get_defaults(): array {
         return [
-            'model'      => self::DEFAULT_MODEL,
-            'dimensions' => '',
+            'model'       => self::DEFAULT_MODEL,
+            'embedregion' => '',
+            'dimensions'  => '',
         ];
+    }
+
+    /**
+     * Validate the form: the embedding region, when given, must look like an AWS region code.
+     *
+     * @param array $data Submitted data.
+     * @param array $files Submitted files.
+     * @return array Errors keyed by field name.
+     */
+    #[\Override]
+    public function validation($data, $files) {
+        $errors = parent::validation($data, $files);
+        $region = trim((string) ($data['embedregion'] ?? ''));
+        if ($region !== '' && !preg_match(self::REGION_PATTERN, $region)) {
+            $errors['embedregion'] = get_string('action:embed_text:embedregion_invalid', 'aiprovider_awsbr');
+        }
+        return $errors;
     }
 
     /**

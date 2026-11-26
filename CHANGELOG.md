@@ -2,6 +2,15 @@
 
 All notable changes to the AWS Bedrock AI provider (`aiprovider_awsbr`).
 
+## 1.7.3 — 2026-11-26
+- New: an "Embedding region" setting on the embed_text action (empty = the
+  instance's region). Embedding requests go to that region, for instances in a
+  region that offers no embedding model: af-south-1 (Cape Town) currently lists
+  none, so Titan Embeddings calls there fail with "The provided model identifier
+  is invalid". When it is set, the instance's fallback region is not used for
+  embeddings. The help text reminds administrators that the text is processed
+  in that region.
+
 ## 1.7.2 — 2026-11-26
 - New: `grade_response` accepts an optional `documents` argument, up to five PDF
   files (4.5 MB each) sent to the model as Converse document blocks after the

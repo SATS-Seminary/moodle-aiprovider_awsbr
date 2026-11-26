@@ -162,6 +162,16 @@ class process_embed_text extends \core_ai\process_base {
     }
 
     /**
+     * The embedding region of the action ('' = the instance's region).
+     *
+     * @return string
+     */
+    protected function get_embed_region(): string {
+        $settings = $this->provider->actionconfig[\aiprovider_awsbr\aiactions\embed_text::class]['settings'] ?? [];
+        return trim((string) ($settings['embedregion'] ?? ''));
+    }
+
+    /**
      * Execute a single InvokeModel call against the given (or default) region.
      *
      * Returns the parsed response array on success or on a non-throttling error.
@@ -227,6 +237,22 @@ class process_embed_text extends \core_ai\process_base {
         $modelid = $this->get_model_id();
         $text    = $this->action->get_configuration('prompttext');
         $body    = $this->build_request_body($modelid, $text);
+
+        // The action's embedding region, when set, replaces the instance's region; the fallback region is
+        // then not used, because it is a fallback for the instance's region.
+        $embedregion = $this->get_embed_region();
+        if ($embedregion !== '') {
+            $result = $this->call_invoke_model($modelid, $body, region: $embedregion);
+            if ($result !== null) {
+                return $result;
+            }
+            return [
+                'success'      => false,
+                'errorcode'    => 429,
+                'error'        => 'ThrottlingException',
+                'errormessage' => 'Bedrock embedding request was throttled in the embedding region.',
+            ];
+        }
 
         // Primary region attempt.
         $result = $this->call_invoke_model($modelid, $body, region: null);

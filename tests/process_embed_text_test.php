@@ -125,13 +125,14 @@ final class process_embed_text_test extends \advanced_testcase {
      * @param string $dim The dimensions setting.
      * @return array The action config.
      */
-    private function action_config(string $model = 'amazon.titan-embed-text-v2:0', string $dim = ''): array {
+    private function action_config(string $model = 'amazon.titan-embed-text-v2:0', string $dim = '', string $region = ''): array {
         return [
             embed_text::class => [
                 'enabled'  => true,
                 'settings' => [
-                    'model'      => $model,
-                    'dimensions' => $dim,
+                    'model'       => $model,
+                    'dimensions'  => $dim,
+                    'embedregion' => $region,
                 ],
             ],
         ];
@@ -520,6 +521,66 @@ final class process_embed_text_test extends \advanced_testcase {
         $this->assertFalse($response->get_success());
         $this->assertEquals(429, $response->get_errorcode());
         $this->assertEquals(1, $callcount, 'Only primary should be attempted when no fallback region is set.');
+    }
+
+    /**
+     * With an embedding region set, the call goes there, and the fallback region is not tried after throttling.
+     */
+    public function test_process_uses_embedding_region(): void {
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $provider = $this->manager->create_provider_instance(
+            classname: '\aiprovider_awsbr\provider',
+            name:      'bedrock-embed-region',
+            config:    array_merge($this->provider_config(), ['fallbackregion' => 'eu-central-1']),
+        );
+        $provider = $this->manager->update_provider_instance(
+            provider:     $provider,
+            actionconfig: $this->action_config(region: 'eu-west-1'),
+        );
+
+        $regions = [];
+        $vector = self::sample_vector(4);
+        $processor = $this->make_processor(
+            $provider,
+            $this->action,
+            function (string $modelid, string $body, ?string $region) use (&$regions, $vector): ?array {
+                $regions[] = $region;
+                return ['success' => true, 'vector' => $vector, 'dim' => 4, 'model' => $modelid, 'tokens' => 3];
+            },
+        );
+        $this->assertTrue($processor->process()->get_success());
+        $this->assertSame(['eu-west-1'], $regions);
+
+        $regions = [];
+        $throttled = $this->make_processor(
+            $provider,
+            $this->action,
+            function (string $modelid, string $body, ?string $region) use (&$regions): ?array {
+                $regions[] = $region;
+                return null;
+            },
+        );
+        $response = $throttled->process();
+        $this->assertFalse($response->get_success());
+        $this->assertEquals(429, $response->get_errorcode());
+        $this->assertSame(['eu-west-1'], $regions, 'The fallback region is not used when an embedding region is set.');
+    }
+
+    /**
+     * The settings form accepts an empty or well-formed region and rejects anything else.
+     */
+    public function test_form_validates_embedding_region(): void {
+        $form = new \aiprovider_awsbr\form\action_embed_text_form(null, [
+            'actionconfig' => ['settings' => []],
+            'actionname' => 'embed_text',
+            'action' => embed_text::class,
+            'providerid' => 0,
+        ]);
+        $this->assertArrayNotHasKey('embedregion', $form->validation(['embedregion' => ''], []));
+        $this->assertArrayNotHasKey('embedregion', $form->validation(['embedregion' => 'eu-west-1'], []));
+        $this->assertArrayHasKey('embedregion', $form->validation(['embedregion' => 'Ireland'], []));
+        $this->assertSame('', $form->get_defaults()['embedregion']);
     }
 
     // Tests for map_aws_exception.
