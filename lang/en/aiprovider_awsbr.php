@@ -26,12 +26,12 @@ defined('MOODLE_INTERNAL') || die();
 
 $string['accesskeyid'] = 'AWS access key ID';
 $string['accesskeyid_help'] = 'Your AWS IAM access key ID. Required when the authentication mode is "Static access key + secret". With "Assume STS role" it is optional: when an access key ID and secret are both set, they sign the sts:AssumeRole call (use this on a server outside AWS). When they are blank, the AWS default credential chain signs the call: environment variables, the shared credentials file or profile, then an ECS or EC2 role.';
-$string['action:embed_text:embedregion'] = 'Embedding region';
-$string['action:embed_text:embedregion_help'] = 'The AWS region that embedding requests are sent to, for example eu-west-1. Leave empty to use the instance\'s region. Set it when the instance\'s region offers no embedding model: Amazon Titan Embeddings is not available in af-south-1 (Cape Town), for example. The text to embed is processed in this region, so check that your data processing agreement covers it. When an embedding region is set, the instance\'s fallback region is not used for embeddings.';
-$string['action:embed_text:embedregion_invalid'] = 'Enter an AWS region code such as eu-west-1, or leave this empty.';
 $string['action:embed_text:dimensions'] = 'Vector dimensions (Titan v2 only)';
 $string['action:embed_text:dimensions_default'] = '— Model default (1024) —';
 $string['action:embed_text:dimensions_help'] = 'Amazon Titan v2 supports configurable output dimensions: 256, 512, or 1024. Lower dimensions reduce storage and cosine-search cost at a small quality penalty. Leave at the default (1024) unless you have measured the trade-off. This setting has no effect on Cohere models.';
+$string['action:embed_text:embedregion'] = 'Embedding region';
+$string['action:embed_text:embedregion_help'] = 'The AWS region that embedding requests are sent to, for example eu-west-1. Leave empty to use the instance\'s region. Set it when the instance\'s region offers no embedding model: Amazon Titan Embeddings is not available in af-south-1 (Cape Town), for example. The text to embed is processed in this region, so check that your data processing agreement covers it. When an embedding region is set, the instance\'s fallback region is not used for embeddings.';
+$string['action:embed_text:embedregion_invalid'] = 'Enter an AWS region code such as eu-west-1, or leave this empty.';
 $string['action:embed_text:model'] = 'Embedding model';
 $string['action:embed_text:model_default'] = 'Amazon Titan Text Embeddings v2 (1024-dim)';
 $string['action:embed_text:model_help'] = 'Select the Bedrock embedding model to use. The default is Amazon Titan Text Embeddings v2 (1024-dim), which is the cheapest option and supports multilingual text. Cohere Embed Multilingual v3 offers higher retrieval quality at approximately 5× the cost.';

@@ -123,6 +123,7 @@ final class process_embed_text_test extends \advanced_testcase {
      *
      * @param string $model The model id.
      * @param string $dim The dimensions setting.
+     * @param string $region The embedding region ('' = the instance's region).
      * @return array The action config.
      */
     private function action_config(string $model = 'amazon.titan-embed-text-v2:0', string $dim = '', string $region = ''): array {
